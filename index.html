@@ -1069,25 +1069,17 @@
 
     <script>
         // ===== Supabase 配置 =====
-        // 优先从本地存储读取配置，否则使用默认值
-        let SUPABASE_URL = localStorage.getItem('supabase_url') || 'https://ykrvdsizpyxcbodjztbf.supabase.co';
-        let SUPABASE_ANON_KEY = localStorage.getItem('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrcnZkc2l6cHl4Y2JvZGp6dGJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MDIxODcsImV4cCI6MjA5MDQ3ODE4N30.wCN1PZAzudjRawlqFGRu3RC3_on1HDkKnwQBNqtJZlc';
+        // 暂时禁用云同步，等功能完善后再启用
+        // let SUPABASE_URL = localStorage.getItem('supabase_url') || 'https://ykrvdsizpyxcbodjztbf.supabase.co';
+        // let SUPABASE_ANON_KEY = localStorage.getItem('supabase_key') || 'eyJ...';
+        
+        const SUPABASE_URL = '';
+        const SUPABASE_ANON_KEY = '';
 
         // ===== Supabase 客户端 =====
         let supabase = null;
         let currentUser = null;
-        let isCloudEnabled = SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '';
-
-        // 初始化Supabase客户端
-        if (isCloudEnabled) {
-            try {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            } catch (e) {
-                console.log('Supabase初始化失败:', e);
-                isCloudEnabled = false;
-                supabase = null;
-            }
-        }
+        let isCloudEnabled = false;
 
         // ===== 数据存储键 =====
         const EXAMS_KEY = 'xueji_exams';
