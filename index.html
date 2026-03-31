@@ -1085,12 +1085,8 @@
             } catch (e) {
                 console.log('Supabase初始化失败:', e);
                 isCloudEnabled = false;
+                supabase = null;
             }
-        }
-
-        // 初始化Supabase
-        if (isCloudEnabled) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         }
 
         // ===== 数据存储键 =====
