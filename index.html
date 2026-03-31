@@ -1757,30 +1757,42 @@
                             return new Date(dateB) - new Date(dateA);
                         });
                         
-                        const addedCount = importedExams.length;
+                        // 计算覆盖数量
                         const coverCount = mergedExams.length - existingExams.length < 0 ? 0 : importedExams.length - (mergedExams.length - existingExams.length);
                         
-                        document.getElementById('confirmModalTitle').textContent = '导入数据？';
-                        document.getElementById('confirmModalMessage').textContent = `将导入 ${addedCount} 个考试记录，其中 ${coverCount} 个将覆盖已有数据，确定继续吗？`;
-                        document.getElementById('confirmModal').classList.add('active');
-                        
-                        const confirmHandler = function() {
+                        if (coverCount === 0) {
+                            // 没有覆盖数据，直接导入
                             saveExams(mergedExams);
                             refreshAll();
                             alert('数据导入成功！');
-                            document.getElementById('confirmModal').classList.remove('active');
-                            document.getElementById('confirmModalOk').removeEventListener('click', confirmHandler);
-                            document.getElementById('confirmModalCancel').removeEventListener('click', cancelHandler);
-                        };
-                        
-                        const cancelHandler = function() {
-                            document.getElementById('confirmModal').classList.remove('active');
-                            document.getElementById('confirmModalOk').removeEventListener('click', confirmHandler);
-                            document.getElementById('confirmModalCancel').removeEventListener('click', cancelHandler);
-                        };
-                        
-                        document.getElementById('confirmModalOk').addEventListener('click', confirmHandler);
-                        document.getElementById('confirmModalCancel').addEventListener('click', cancelHandler);
+                        } else {
+                            // 有覆盖数据，弹窗确认
+                            document.getElementById('confirmModalTitle').textContent = '数据重复';
+                            document.getElementById('confirmModalMessage').textContent = `发现 ${coverCount} 个考试记录与已有数据重名，将用导入数据覆盖原有记录。`;
+                            document.getElementById('confirmModalOk').textContent = '覆盖';
+                            document.getElementById('confirmModal').classList.add('active');
+                            
+                            const confirmHandler = function() {
+                                saveExams(mergedExams);
+                                refreshAll();
+                                alert('数据导入成功！');
+                                document.getElementById('confirmModal').classList.remove('active');
+                                document.getElementById('confirmModalOk').removeEventListener('click', confirmHandler);
+                                document.getElementById('confirmModalCancel').removeEventListener('click', cancelHandler);
+                                // 恢复按钮文字
+                                document.getElementById('confirmModalOk').textContent = '删除';
+                            };
+                            
+                            const cancelHandler = function() {
+                                document.getElementById('confirmModal').classList.remove('active');
+                                document.getElementById('confirmModalOk').removeEventListener('click', confirmHandler);
+                                document.getElementById('confirmModalCancel').removeEventListener('click', cancelHandler);
+                                document.getElementById('confirmModalOk').textContent = '删除';
+                            };
+                            
+                            document.getElementById('confirmModalOk').addEventListener('click', confirmHandler);
+                            document.getElementById('confirmModalCancel').addEventListener('click', cancelHandler);
+                        }
                     } else {
                         alert('无法解析Excel文件，请检查格式');
                     }
