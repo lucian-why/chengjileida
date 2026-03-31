@@ -1733,13 +1733,39 @@
                     const importedExams = Object.values(examsMap);
                     
                     if (importedExams.length > 0) {
-                        // 使用自定义确认框
+                        // 合并数据：同名同日期的覆盖，其他新增
+                        const existingExams = getExams();
+                        const mergedExams = [...existingExams];
+                        
+                        importedExams.forEach(importedExam => {
+                            const existingIndex = mergedExams.findIndex(e => 
+                                e.name === importedExam.name && e.startDate === importedExam.startDate
+                            );
+                            if (existingIndex >= 0) {
+                                // 覆盖原有数据，保留ID
+                                mergedExams[existingIndex] = { ...importedExam, id: mergedExams[existingIndex].id };
+                            } else {
+                                // 新增
+                                mergedExams.push(importedExam);
+                            }
+                        });
+                        
+                        // 按开始日期排序，最新的在前
+                        mergedExams.sort((a, b) => {
+                            const dateA = a.startDate || '1970-01-01';
+                            const dateB = b.startDate || '1970-01-01';
+                            return new Date(dateB) - new Date(dateA);
+                        });
+                        
+                        const addedCount = importedExams.length;
+                        const coverCount = mergedExams.length - existingExams.length < 0 ? 0 : importedExams.length - (mergedExams.length - existingExams.length);
+                        
                         document.getElementById('confirmModalTitle').textContent = '导入数据？';
-                        document.getElementById('confirmModalMessage').textContent = `将导入 ${importedExams.length} 个考试记录，导入将覆盖现有数据，确定继续吗？`;
+                        document.getElementById('confirmModalMessage').textContent = `将导入 ${addedCount} 个考试记录，其中 ${coverCount} 个将覆盖已有数据，确定继续吗？`;
                         document.getElementById('confirmModal').classList.add('active');
                         
                         const confirmHandler = function() {
-                            saveExams(importedExams);
+                            saveExams(mergedExams);
                             refreshAll();
                             alert('数据导入成功！');
                             document.getElementById('confirmModal').classList.remove('active');
