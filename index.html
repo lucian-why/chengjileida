@@ -1070,8 +1070,8 @@
     <script>
         // ===== Supabase 配置 =====
         // 优先从本地存储读取配置，否则使用默认值
-        let SUPABASE_URL = localStorage.getItem('supabase_url') || '';
-        let SUPABASE_ANON_KEY = localStorage.getItem('supabase_key') || '';
+        let SUPABASE_URL = localStorage.getItem('supabase_url') || 'https://ykrvdsizpyxcbodjztbf.supabase.co';
+        let SUPABASE_ANON_KEY = localStorage.getItem('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrcnZkc2l6cHl4Y2JvZGp6dGJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MDIxODcsImV4cCI6MjA5MDQ3ODE4N30.wCN1PZAzudjRawlqFGRu3RC3_on1HDkKnwQBNqtJZlc';
 
         // ===== Supabase 客户端 =====
         let supabase = null;
