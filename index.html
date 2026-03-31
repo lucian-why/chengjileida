@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>成绩管家 - 记录每一步进步</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
@@ -821,7 +821,6 @@
             <div class="sidebar-header">
                 <h1>成绩管家</h1>
                 <p>记录每一步进步</p>
-                <div id="cloudStatus" style="margin-top: 8px; font-size: 0.75rem;"></div>
             </div>
             
             <div class="exam-list" id="examList">
@@ -941,31 +940,9 @@
                             <div class="setting-desc">从JSON文件导入</div>
                         </div>
                         <button class="btn-small" id="importBtn">导入</button>
-                        <input type="file" id="importFile" accept=".json" style="display: none;">
+                        <input type="file" id="importFile" accept=".xlsx,.xls" style="display: none;">
                     </div>
                     
-                </div>
-                
-                <!-- 云同步设置 -->
-                <div class="card" style="margin-top: 20px;">
-                    <h2 class="card-title">云同步设置</h2>
-                    <div id="cloudConfigStatus" style="margin-bottom: 16px; padding: 12px; background: var(--bg-primary); border-radius: 8px;">
-                        <div style="font-size: 0.9rem; color: var(--text-secondary);">
-                            当前状态：<span id="syncStatusText">未配置</span>
-                        </div>
-                    </div>
-                    <div id="cloudConfigForm" style="display: none;">
-                        <div class="form-group">
-                            <label>Supabase URL</label>
-                            <input type="text" id="supabaseUrl" placeholder="https://xxxxx.supabase.co">
-                        </div>
-                        <div class="form-group">
-                            <label>Supabase Anon Key</label>
-                            <input type="text" id="supabaseKey" placeholder="eyJhbGciOiJIUzI1NiIs...">
-                        </div>
-                        <button type="button" class="btn btn-primary" id="saveCloudConfig" style="width: 100%;">保存并启用云同步</button>
-                    </div>
-                    <button type="button" class="btn btn-secondary" id="setupCloudBtn" style="width: 100%;">配置云同步</button>
                 </div>
             </div>
         </main>
@@ -1068,129 +1045,32 @@
     </div>
 
     <script>
-        // ===== Supabase 配置 =====
-        // 直接禁用云同步，避免任何初始化问题
-        let SUPABASE_URL = '';
-        let SUPABASE_ANON_KEY = '';
-        
         // ===== 全局状态 =====
-        let supabaseClient = null;  // 改名避免和库名冲突
-        let currentUser = null;
-        let isCloudEnabled = false;
+        let currentExamId = null;
+        let trendChart = null;
 
         // ===== 数据存储键 =====
         const EXAMS_KEY = 'xueji_exams';
         const TARGET_KEY = 'xueji_target';
 
-        // ===== 云同步状态 =====
-        function updateCloudStatus(connected, message = '') {
-            const statusEl = document.getElementById('cloudStatus');
-            if (statusEl) {
-                statusEl.innerHTML = connected 
-                    ? '<span style="color: var(--accent-green);">● 云同步已开启</span>'
-                    : '<span style="color: var(--text-secondary);">○ 本地存储</span>';
-            }
-        }
-
         // ===== 数据操作 =====
-        async function getExams() {
-            // 优先尝试从云端获取
-            if (isCloudEnabled && currentUser && supabaseClient) {
-                try {
-                    const { data, error } = await supabaseClient
-                        .from('exams')
-                        .select('data')
-                        .eq('user_id', currentUser.id)
-                        .single();
-                    
-                    if (data && data.data) {
-                        // 同步到本地作为备份
-                        localStorage.setItem(EXAMS_KEY, JSON.stringify(data.data));
-                        return data.data;
-                    }
-                } catch (e) {
-                    console.log('云端获取失败，使用本地数据');
-                }
-            }
-            // 回退到本地存储
+        function getExams() {
             const data = localStorage.getItem(EXAMS_KEY);
             return data ? JSON.parse(data) : [];
         }
 
-        async function saveExams(exams) {
-            // 保存到本地
+        function saveExams(exams) {
             localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
-            
-            // 如果已登录云端，同时保存到云端
-            if (isCloudEnabled && currentUser && supabaseClient) {
-                try {
-                    await supabaseClient
-                        .from('exams')
-                        .upsert({ 
-                            user_id: currentUser.id, 
-                            data: exams, 
-                            updated_at: new Date().toISOString() 
-                        }, { onConflict: 'user_id' });
-                } catch (e) {
-                    console.log('云端保存失败');
-                }
-            }
         }
 
-        async function getTarget() {
-            if (isCloudEnabled && currentUser && supabaseClient) {
-                try {
-                    const { data } = await supabaseClient
-                        .from('targets')
-                        .select('target')
-                        .eq('user_id', currentUser.id)
-                        .single();
-                    if (data) {
-                        localStorage.setItem(TARGET_KEY, data.target);
-                        return data.target;
-                    }
-                } catch (e) {}
-            }
+        function getTarget() {
             const target = localStorage.getItem(TARGET_KEY);
             return target ? parseInt(target) : 90;
         }
 
-        async function saveTarget(target) {
+        function saveTarget(target) {
             localStorage.setItem(TARGET_KEY, target);
-            
-            if (isCloudEnabled && currentUser && supabaseClient) {
-                try {
-                    await supabaseClient
-                        .from('targets')
-                        .upsert({ 
-                            user_id: currentUser.id, 
-                            target: target,
-                            updated_at: new Date().toISOString()
-                        }, { onConflict: 'user_id' });
-                } catch (e) {}
-            }
         }
-
-        // ===== 匿名登录 =====
-        async function loginAnonymously() {
-            if (!isCloudEnabled || !supabaseClient) return false;
-            
-            try {
-                const { data, error } = await supabaseClient.auth.signInAnonymously();
-                if (data?.user) {
-                    currentUser = data.user;
-                    updateCloudStatus(true, '已登录');
-                    return true;
-                }
-            } catch (e) {
-                console.log('匿名登录失败:', e);
-            }
-            return false;
-        }
-
-        // ===== 全局状态 =====
-        let currentExamId = null;
-        let trendChart = null;
 
         // ===== 渲染考试列表 =====
         async function renderExamList() {
@@ -1756,85 +1636,45 @@
             }
         });
 
-        // ===== 云同步配置 =====
-        // 检查本地是否已有配置
-        const savedUrl = localStorage.getItem('supabase_url');
-        const savedKey = localStorage.getItem('supabase_key');
-        
-        if (savedUrl && savedKey) {
-            document.getElementById('syncStatusText').textContent = '已配置（点击可修改）';
-            document.getElementById('syncStatusText').style.color = 'var(--accent-green)';
-        } else {
-            document.getElementById('syncStatusText').textContent = '未配置';
-        }
-
-        // 显示/隐藏配置表单
-        document.getElementById('setupCloudBtn').addEventListener('click', function() {
-            document.getElementById('cloudConfigForm').style.display = 'block';
-            this.style.display = 'none';
+        // ===== 数据导出导入（Excel格式）=====
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            const exams = getExams();
+            const target = getTarget();
             
-            // 填充已有配置
-            if (savedUrl) document.getElementById('supabaseUrl').value = savedUrl;
-            if (savedKey) document.getElementById('supabaseKey').value = savedKey;
-        });
-
-        // 保存云同步配置
-        document.getElementById('saveCloudConfig').addEventListener('click', async function() {
-            const url = document.getElementById('supabaseUrl').value.trim();
-            const key = document.getElementById('supabaseKey').value.trim();
+            // 创建Excel数据
+            const worksheetData = [
+                ['考试名称', '日期', '科目', '成绩', '满分', '备注']
+            ];
             
-            if (!url || !key) {
-                alert('请填写完整的Supabase配置');
-                return;
-            }
+            exams.forEach(exam => {
+                const date = exam.startDate || '';
+                (exam.subjects || []).forEach(subject => {
+                    worksheetData.push([
+                        exam.name,
+                        date,
+                        subject.name,
+                        subject.score,
+                        subject.fullScore || 100,
+                        subject.notes || ''
+                    ]);
+                });
+            });
             
-            // 检查 Supabase 库是否加载成功
-            if (typeof window.supabase === 'undefined') {
-                alert('Supabase 库加载失败，请刷新页面后重试');
-                return;
-            }
+            const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '成绩记录');
             
-            // 保存到本地存储
-            localStorage.setItem('supabase_url', url);
-            localStorage.setItem('supabase_key', key);
+            // 添加目标表
+            const targetData = [
+                ['项目', '值'],
+                ['目标分数', target],
+                ['导出时间', new Date().toLocaleString()]
+            ];
+            const ws2 = XLSX.utils.aoa_to_sheet(targetData);
+            XLSX.utils.book_append_sheet(wb, ws2, '目标设置');
             
-            // 更新全局配置并初始化客户端
-            SUPABASE_URL = url;
-            SUPABASE_ANON_KEY = key;
-            isCloudEnabled = true;
-            supabaseClient = window.supabase.createClient(url, key);
-            
-            // 尝试登录
-            await loginAnonymously();
-            
-            if (currentUser) {
-                alert('云同步配置成功！数据将自动同步到云端。');
-                document.getElementById('syncStatusText').textContent = '已配置 - 已登录';
-                document.getElementById('syncStatusText').style.color = 'var(--accent-green)';
-                document.getElementById('cloudConfigForm').style.display = 'none';
-                document.getElementById('setupCloudBtn').style.display = 'none';
-                updateCloudStatus(true);
-                refreshAll();
-            } else {
-                alert('配置保存成功，但登录失败，请检查网络后重试。');
-            }
-        });
-
-        // ===== 数据导出导入 =====
-        document.getElementById('exportBtn').addEventListener('click', async function() {
-            const data = {
-                exams: await getExams(),
-                target: await getTarget(),
-                exportTime: new Date().toISOString()
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = '成绩管家数据_' + new Date().toISOString().split('T')[0] + '.json';
-            a.click();
-            URL.revokeObjectURL(url);
+            // 下载Excel文件
+            XLSX.writeFile(wb, '成绩管家_' + new Date().toISOString().split('T')[0] + '.xlsx');
         });
 
         document.getElementById('importBtn').addEventListener('click', function() {
@@ -1848,20 +1688,60 @@
             const reader = new FileReader();
             reader.onload = function(event) {
                 try {
-                    const data = JSON.parse(event.target.result);
-                    if (data.exams) {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 读取第一个表格（成绩记录）
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    if (jsonData.length <= 1) {
+                        alert('Excel文件没有数据');
+                        return;
+                    }
+                    
+                    // 解析Excel数据
+                    const examsMap = {};
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (!row[0]) continue;
+                        
+                        const examName = row[0];
+                        const date = row[1] || '';
+                        const subjectName = row[2];
+                        const score = parseFloat(row[3]) || 0;
+                        const fullScore = parseFloat(row[4]) || 100;
+                        const notes = row[5] || '';
+                        
+                        if (!examsMap[examName]) {
+                            examsMap[examName] = {
+                                id: Date.now() + i,
+                                name: examName,
+                                startDate: date,
+                                subjects: []
+                            };
+                        }
+                        
+                        examsMap[examName].subjects.push({
+                            name: subjectName,
+                            score: score,
+                            fullScore: fullScore,
+                            notes: notes
+                        });
+                    }
+                    
+                    const importedExams = Object.values(examsMap);
+                    
+                    if (importedExams.length > 0) {
                         // 使用自定义确认框
                         document.getElementById('confirmModalTitle').textContent = '导入数据？';
-                        document.getElementById('confirmModalMessage').textContent = '导入将覆盖现有数据，确定继续吗？';
+                        document.getElementById('confirmModalMessage').textContent = `将导入 ${importedExams.length} 个考试记录，导入将覆盖现有数据，确定继续吗？`;
                         document.getElementById('confirmModal').classList.add('active');
                         
-                        // 一次性确认处理器
-                        const confirmHandler = async function() {
-                            await saveExams(data.exams);
-                            if (data.target) await saveTarget(data.target);
-                            await refreshAll();
+                        const confirmHandler = function() {
+                            saveExams(importedExams);
+                            refreshAll();
                             alert('数据导入成功！');
-                            // 清理
                             document.getElementById('confirmModal').classList.remove('active');
                             document.getElementById('confirmModalOk').removeEventListener('click', confirmHandler);
                             document.getElementById('confirmModalCancel').removeEventListener('click', cancelHandler);
@@ -1875,12 +1755,14 @@
                         
                         document.getElementById('confirmModalOk').addEventListener('click', confirmHandler);
                         document.getElementById('confirmModalCancel').addEventListener('click', cancelHandler);
+                    } else {
+                        alert('无法解析Excel文件，请检查格式');
                     }
                 } catch (err) {
-                    alert('文件解析失败');
+                    alert('文件解析失败: ' + err.message);
                 }
             };
-            reader.readAsText(file);
+            reader.readAsArrayBuffer(file);
             this.value = '';
         });
 
@@ -1989,15 +1871,8 @@
         document.getElementById('newExamBtn').addEventListener('click', () => openExamModal());
 
         // ===== 初始化 =====
-        async function initApp() {
+        function initApp() {
             initCharts();
-            
-            // 尝试匿名登录云端
-            if (isCloudEnabled) {
-                await loginAnonymously();
-            }
-            
-            updateCloudStatus(isCloudEnabled && currentUser !== null);
             refreshAll();
         }
         
