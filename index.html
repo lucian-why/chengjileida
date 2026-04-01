@@ -600,6 +600,7 @@
             margin-bottom: 20px;
             box-shadow: var(--shadow-card);
             border: 1px solid var(--border-color);
+            position: relative;
         }
 
         .card-title {
@@ -1274,6 +1275,107 @@
         .report-modal-overlay.active {
             display: flex;
         }
+
+        /* 图表放大弹窗 */
+        .chart-zoom-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1001;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+        .chart-zoom-overlay.active {
+            display: flex;
+        }
+        .chart-zoom-container {
+            background: var(--bg-card);
+            border-radius: 16px;
+            width: 92vw;
+            max-width: 900px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+        }
+        .chart-zoom-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .chart-zoom-header h3 {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        .chart-zoom-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: var(--bg-primary);
+            border-radius: 50%;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+        .chart-zoom-close:hover {
+            background: #e8e4de;
+        }
+        .chart-zoom-body {
+            flex: 1;
+            padding: 16px 20px;
+            overflow-y: auto;
+            position: relative;
+        }
+        .chart-zoom-body .chart-tabs {
+            margin-bottom: 12px;
+        }
+        .chart-zoom-body .chart-container {
+            height: calc(100% - 48px);
+            min-height: 300px;
+        }
+        .chart-zoom-body #zoomRadarContainer {
+            max-width: 100% !important;
+            height: 100%;
+        }
+        .chart-zoom-body #zoomRadarContainer canvas {
+            max-height: 100% !important;
+        }
+
+        /* 图表卡片上的放大按钮 */
+        .chart-zoom-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 5;
+        }
+        .chart-zoom-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            transform: scale(1.05);
+        }
         .report-modal {
             background: var(--bg-card);
             border-radius: 16px;
@@ -1429,6 +1531,7 @@
 
                 <!-- 分数趋势 / 排名趋势 -->
                 <div class="card" id="trendCard">
+                    <button class="chart-zoom-btn" onclick="openChartZoom('trend')" title="放大查看">⛶</button>
                     <div class="chart-secondary-row">
                         <div class="chart-tabs" id="chartTabs">
                             <button class="chart-tab active" data-chart="total">总分趋势</button>
@@ -1445,13 +1548,14 @@
 
                 <!-- 科目对比（雷达图） -->
                 <div class="card" id="radarCard" style="display: none;">
+                    <button class="chart-zoom-btn" onclick="openChartZoom('radar')" title="放大查看">⛶</button>
                     <div class="radar-header">
                         <div class="radar-header-title">当前：<span id="radarCurrentExamName">--</span></div>
                         <div class="radar-compare-area">
                             <div class="radar-compare-chips" id="radarCompareChips">
                                 <!-- 对比考试 chip 将由JS渲染 -->
                             </div>
-                            <div class="radar-compare-hint" id="radarCompareHint">点击选择考试进行对比（最多3场）</div>
+                            <div class="radar-compare-hint" id="radarCompareHint">点击选择考试进行对比（最多2场）</div>
                         </div>
                     </div>
                     <div class="radar-container">
@@ -1653,6 +1757,29 @@
 
     <!-- 隐藏渲染区域（html2canvas 截图用） -->
     <div id="report-render-wrapper" style="position: fixed; left: -9999px; top: 0; z-index: -1;"></div>
+
+    <!-- 图表放大弹窗 -->
+    <div class="chart-zoom-overlay" id="chartZoomOverlay">
+        <div class="chart-zoom-container">
+            <div class="chart-zoom-header">
+                <h3 id="chartZoomTitle">成绩分析</h3>
+                <button class="chart-zoom-close" onclick="closeChartZoom()">✕</button>
+            </div>
+            <div class="chart-zoom-body" id="chartZoomBody">
+                <div class="chart-tabs" id="zoomChartTabs"></div>
+                <select class="rank-type-select" id="zoomRankTypeSelect" style="display: none; margin-bottom: 12px;">
+                    <option value="class">班级排名</option>
+                    <option value="grade">年级排名</option>
+                </select>
+                <div class="chart-container">
+                    <canvas id="zoomTrendChart"></canvas>
+                </div>
+                <div class="radar-container" id="zoomRadarContainer" style="display: none;">
+                    <canvas id="zoomRadarChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         // ===== 全局状态 =====
@@ -1908,12 +2035,10 @@
         let radarChart = null;
         let selectedCompareIds = []; // 已选对比考试ID列表（存数字类型）
 
-        // 雷达图配色：4种高对比颜色 + 不同点样式
+        // 雷达图配色：当前(红) + 对比1(蓝) + 对比2(橙)，高对比不冲突
         const RADAR_COMPARE_STYLES = [
-            { bg: 'rgba(232, 100, 60, 0.2)',  border: '#E8643C', fill: true,  borderWidth: 3, pointRadius: 5, pointHoverRadius: 7, pointStyle: 'circle' },
-            { bg: 'rgba(50, 120, 210, 0.08)',  border: '#3278D2', fill: false, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointStyle: 'rect' },
-            { bg: 'rgba(140, 60, 180, 0.08)',  border: '#8C3CB4', fill: false, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointStyle: 'triangle' },
-            { bg: 'rgba(40, 170, 100, 0.08)',  border: '#28AA64', fill: false, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, pointStyle: 'star' }
+            { bg: 'rgba(50, 120, 210, 0.12)',  border: '#3278D2', fill: true,  borderWidth: 3, pointRadius: 5, pointHoverRadius: 7, pointStyle: 'rect' },
+            { bg: 'rgba(240, 160, 50, 0.12)',  border: '#F0A032', fill: true,  borderWidth: 3, pointRadius: 5, pointHoverRadius: 7, pointStyle: 'triangle' },
         ];
 
         function initRadarChart() {
@@ -1927,6 +2052,10 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
+                    animation: {
+                        duration: 800,
+                        easing: 'easeOutQuart'
+                    },
                     plugins: {
                         legend: {
                             display: true,
@@ -2014,7 +2143,7 @@
                     html += `<span class="radar-compare-chip current-exam">${exam.name}</span>`;
                 } else {
                     const isSelected = selectedCompareIds.includes(exam.id);
-                    const isFull = selectedCompareIds.length >= 3 && !isSelected;
+                    const isFull = selectedCompareIds.length >= 2 && !isSelected;
                     html += `<span class="radar-compare-chip${isSelected ? ' selected' : ''}${isFull ? ' disabled' : ''}" data-exam-id="${exam.id}" onclick="toggleRadarCompare(${exam.id})">${exam.name}</span>`;
                 }
             });
@@ -2024,9 +2153,9 @@
             // 更新提示
             const count = selectedCompareIds.length;
             if (count === 0) {
-                hintEl.textContent = '点击选择考试进行对比（最多3场）';
+                hintEl.textContent = '点击选择考试进行对比（最多2场）';
             } else {
-                hintEl.textContent = `已选 ${count}/3 场考试`;
+                hintEl.textContent = `已选 ${count}/2 场考试`;
             }
         }
 
@@ -2035,7 +2164,7 @@
             if (idx >= 0) {
                 selectedCompareIds.splice(idx, 1);
             } else {
-                if (selectedCompareIds.length >= 3) return;
+                if (selectedCompareIds.length >= 2) return;
                 selectedCompareIds.push(examId);
             }
             renderRadarCompareChips();
@@ -2107,24 +2236,24 @@
                 gradeRank: s.gradeRank || null
             }));
 
-            // 当前考试数据集（第一个，实心填充，最大）
-            const ds0 = RADAR_COMPARE_STYLES[0];
+            // 当前考试数据集（红色，实心填充，最大）
+            const currentStyle = { bg: 'rgba(232, 100, 60, 0.15)', border: '#E8643C' };
             const datasets = [{
                 label: currentExam.name,
                 data: currentData,
                 _subjectMeta: currentMeta,
                 _isCurrent: true,
-                backgroundColor: ds0.fill ? ds0.bg : 'transparent',
-                borderColor: ds0.border,
-                borderWidth: ds0.borderWidth,
+                backgroundColor: currentStyle.bg,
+                borderColor: currentStyle.border,
+                borderWidth: 3,
                 borderDash: [],
-                pointBackgroundColor: ds0.border,
+                pointBackgroundColor: currentStyle.border,
                 pointBorderColor: '#fff',
                 pointBorderWidth: 2,
-                pointRadius: ds0.pointRadius,
-                pointHoverRadius: ds0.pointHoverRadius,
-                pointStyle: ds0.pointStyle,
-                fill: ds0.fill
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                pointStyle: 'circle',
+                fill: true
             }];
 
             // 对比考试数据集（不填充，不同点样式）
@@ -2147,7 +2276,7 @@
                     }
                     return null;
                 });
-                const style = RADAR_COMPARE_STYLES[(i + 1) % RADAR_COMPARE_STYLES.length];
+                const style = RADAR_COMPARE_STYLES[i % RADAR_COMPARE_STYLES.length];
                 datasets.push({
                     label: compExam.name,
                     data: compData,
@@ -2401,6 +2530,281 @@
 
         function updateCharts() {
             updateTrendChart();
+        }
+
+        // ===== 图表放大弹窗 =====
+        let zoomTrendChart = null;
+        let zoomRadarChart = null;
+
+        function openChartZoom(type) {
+            const overlay = document.getElementById('chartZoomOverlay');
+            const body = document.getElementById('chartZoomBody');
+            const titleEl = document.getElementById('chartZoomTitle');
+            const zoomTabsEl = document.getElementById('zoomChartTabs');
+            const zoomRankSelect = document.getElementById('zoomRankTypeSelect');
+            const zoomTrendContainer = body.querySelector('.chart-container');
+            const zoomRadarContainer = document.getElementById('zoomRadarContainer');
+            const zoomTrendCanvas = document.getElementById('zoomTrendChart');
+            const zoomRadarCanvas = document.getElementById('zoomRadarChart');
+
+            if (type === 'trend') {
+                titleEl.textContent = trendAnalysisMode === 'rank' ? '🏅 排名趋势' : '📊 分数趋势';
+                zoomTrendContainer.style.display = '';
+                zoomRadarContainer.style.display = 'none';
+                zoomTabsEl.style.display = '';
+                zoomRankSelect.style.display = trendAnalysisMode === 'rank' ? '' : 'none';
+                zoomRankSelect.value = trendRankType;
+
+                // 复制科目 tabs
+                const exams = getExams(getActiveProfileId(), true);
+                const subjects = [...new Set(exams.flatMap(e => (e.subjects || []).map(s => s.name)))];
+                const activeTab = document.querySelector('#chartTabs .chart-tab.active');
+                const selectedSubject = activeTab ? activeTab.dataset.subject : null;
+
+                let tabsHtml = '<button class="chart-tab active" data-chart="total">总分</button>';
+                subjects.forEach(s => {
+                    tabsHtml += `<button class="chart-tab ${selectedSubject === s ? 'active' : ''}" data-subject="${s}" data-chart="subject">${s}</button>`;
+                });
+                zoomTabsEl.innerHTML = tabsHtml;
+                // 调整 active 状态
+                if (selectedSubject) {
+                    zoomTabsEl.querySelectorAll('.chart-tab').forEach(t => {
+                        t.classList.toggle('active', t.dataset.subject === selectedSubject || (!t.dataset.subject && !selectedSubject));
+                    });
+                }
+
+                // 销毁旧图表
+                if (zoomTrendChart) { zoomTrendChart.destroy(); zoomTrendChart = null; }
+                zoomTrendChart = new Chart(zoomTrendCanvas, {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ data: [], borderWidth: 2, pointRadius: 5, pointHoverRadius: 7, tension: 0.3, fill: false }] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(ctx) {
+                                        return ctx.dataset.label + ': ' + ctx.parsed.y;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { grid: { color: 'rgba(128,128,128,0.1)' } },
+                            y: { beginAtZero: false, grid: { color: 'rgba(128,128,128,0.1)' } }
+                        }
+                    }
+                });
+
+                // 渲染数据
+                const sortedExams = [...exams].sort((a, b) => new Date(a.startDate || a.createdAt) - new Date(b.startDate || b.createdAt));
+                if (trendAnalysisMode === 'rank') {
+                    renderZoomRankChart(sortedExams);
+                } else {
+                    renderZoomScoreChart(sortedExams);
+                }
+
+                // 绑定 tab 切换
+                zoomTabsEl.querySelectorAll('.chart-tab').forEach(tab => {
+                    tab.addEventListener('click', function() {
+                        zoomTabsEl.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+                        this.classList.add('active');
+                        if (trendAnalysisMode === 'rank') {
+                            renderZoomRankChart(sortedExams);
+                        } else {
+                            renderZoomScoreChart(sortedExams);
+                        }
+                    });
+                });
+
+                // 绑定排名类型切换
+                zoomRankSelect.onchange = function() {
+                    trendRankType = this.value;
+                    saveTrendMode();
+                    document.getElementById('rankTypeSelect').value = trendRankType;
+                    updateTrendChart();
+                    renderZoomRankChart(sortedExams);
+                };
+
+            } else if (type === 'radar') {
+                titleEl.textContent = '🎯 科目对比';
+                zoomTrendContainer.style.display = 'none';
+                zoomRadarContainer.style.display = '';
+                zoomTabsEl.style.display = 'none';
+                zoomRankSelect.style.display = 'none';
+
+                // 销毁旧图表
+                if (zoomRadarChart) { zoomRadarChart.destroy(); zoomRadarChart = null; }
+
+                const exams = getExams(getActiveProfileId(), true);
+                const currentExam = exams.find(e => e.id === currentExamId);
+                if (!currentExam || !currentExam.subjects || currentExam.subjects.length < 3) return;
+
+                const currentSubjects = currentExam.subjects.filter(s => s.fullScore && s.fullScore > 0);
+                if (currentSubjects.length < 3) return;
+
+                const labels = currentSubjects.map(s => s.name);
+                const currentData = currentSubjects.map(s => Math.round(s.score / s.fullScore * 100));
+
+                const datasets = [{
+                    label: currentExam.name,
+                    data: currentData,
+                    backgroundColor: 'rgba(232, 100, 60, 0.15)',
+                    borderColor: '#E8643C',
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointStyle: 'circle',
+                    fill: true
+                }];
+
+                // 添加对比考试
+                selectedCompareIds.forEach((id, ci) => {
+                    const compareExam = exams.find(e => e.id === id);
+                    if (!compareExam) return;
+                    const style = RADAR_COMPARE_STYLES[ci % RADAR_COMPARE_STYLES.length];
+                    const compareSubjects = compareExam.subjects.filter(s => s.fullScore && s.fullScore > 0);
+                    const data = labels.map(name => {
+                        const s = compareSubjects.find(cs => cs.name === name);
+                        return s ? Math.round(s.score / s.fullScore * 100) : null;
+                    });
+                    datasets.push({
+                        label: compareExam.name,
+                        data: data,
+                        backgroundColor: style.bg,
+                        borderColor: style.border,
+                        borderWidth: style.borderWidth,
+                        pointRadius: style.pointRadius,
+                        pointHoverRadius: style.pointHoverRadius,
+                        pointStyle: style.pointStyle,
+                        fill: style.fill
+                    });
+                });
+
+                zoomRadarChart = new Chart(zoomRadarCanvas, {
+                    type: 'radar',
+                    data: { labels, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: {
+                            duration: 800,
+                            easing: 'easeOutQuart'
+                        },
+                        plugins: {
+                            legend: { display: datasets.length > 1, position: 'bottom', labels: { padding: 20, usePointStyle: true, font: { size: 14 } } },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(ctx) {
+                                        return ctx.dataset.label + ': ' + ctx.parsed.r + '%';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { stepSize: 20, font: { size: 14 }, color: 'var(--text-secondary)', backdropColor: 'transparent' },
+                                pointLabels: { font: { size: 16, weight: '500' }, color: 'var(--text-primary)' },
+                                grid: { color: 'rgba(128,128,128,0.15)' },
+                                angleLines: { color: 'rgba(128,128,128,0.15)' }
+                            }
+                        }
+                    }
+                });
+            }
+
+            overlay.classList.add('active');
+        }
+
+        function renderZoomScoreChart(sortedExams) {
+            if (!zoomTrendChart) return;
+            const activeTab = document.querySelector('#zoomChartTabs .chart-tab.active');
+            const selectedSubject = activeTab ? activeTab.dataset.subject : null;
+
+            let data, label;
+            if (!selectedSubject || activeTab.dataset.chart === 'total') {
+                data = sortedExams.map(exam => {
+                    const subjects = exam.subjects || [];
+                    if (subjects.length === 0) return null;
+                    const total = subjects.reduce((sum, s) => sum + s.score, 0);
+                    return { name: exam.name, value: total };
+                }).filter(e => e !== null);
+                label = '总分';
+            } else {
+                data = sortedExams.map(exam => {
+                    const record = (exam.subjects || []).find(s => s.name === selectedSubject);
+                    return record ? { name: exam.name, value: record.score } : null;
+                }).filter(e => e !== null);
+                label = selectedSubject;
+            }
+
+            zoomTrendChart.data.labels = data.map(e => e.name);
+            zoomTrendChart.data.datasets[0].data = data.map(e => e.value);
+            zoomTrendChart.data.datasets[0].label = label;
+            zoomTrendChart.data.datasets[0].borderColor = CHART_COLORS.accent;
+            zoomTrendChart.data.datasets[0].backgroundColor = CHART_COLORS.accentBg;
+            zoomTrendChart.data.datasets[0].pointBackgroundColor = CHART_COLORS.accent;
+            zoomTrendChart.options.scales.y.reverse = false;
+            zoomTrendChart.options.scales.y.beginAtZero = false;
+            zoomTrendChart.options.scales.y.max = undefined;
+            zoomTrendChart.options.scales.y.title = { display: false };
+            zoomTrendChart.update();
+        }
+
+        function renderZoomRankChart(sortedExams) {
+            if (!zoomTrendChart) return;
+            const activeTab = document.querySelector('#zoomChartTabs .chart-tab.active');
+            const selectedSubject = activeTab ? activeTab.dataset.subject : null;
+
+            let data, label, rankLabelPrefix;
+            if (!selectedSubject || activeTab.dataset.chart === 'total') {
+                data = sortedExams.map(exam => {
+                    const rank = trendRankType === 'class' ? exam.totalClassRank : exam.totalGradeRank;
+                    return rank ? { name: exam.name, value: rank } : null;
+                }).filter(e => e !== null);
+                rankLabelPrefix = trendRankType === 'class' ? '班级排名' : '年级排名';
+                label = '总分' + rankLabelPrefix;
+            } else {
+                data = sortedExams.map(exam => {
+                    const record = (exam.subjects || []).find(s => s.name === selectedSubject);
+                    if (!record) return null;
+                    const rank = trendRankType === 'class' ? record.classRank : record.gradeRank;
+                    return rank ? { name: exam.name, value: rank } : null;
+                }).filter(e => e !== null);
+                rankLabelPrefix = trendRankType === 'class' ? '班级' : '年级';
+                label = selectedSubject + rankLabelPrefix + '排名';
+            }
+
+            const color = trendRankType === 'class' ? CHART_COLORS.blue : CHART_COLORS.purple;
+            const bgColor = trendRankType === 'class' ? CHART_COLORS.blueBg : CHART_COLORS.purpleBg;
+
+            zoomTrendChart.data.labels = data.map(e => e.name);
+            zoomTrendChart.data.datasets[0].data = data.map(e => e.value);
+            zoomTrendChart.data.datasets[0].label = label;
+            zoomTrendChart.data.datasets[0].borderColor = color;
+            zoomTrendChart.data.datasets[0].backgroundColor = bgColor;
+            zoomTrendChart.data.datasets[0].pointBackgroundColor = color;
+            zoomTrendChart.options.scales.y.reverse = true;
+            zoomTrendChart.options.scales.y.beginAtZero = true;
+            zoomTrendChart.options.scales.y.max = undefined;
+            zoomTrendChart.options.scales.y.title = {
+                display: true,
+                text: rankLabelPrefix + '（↑ 进步）',
+                color: '#6b6560',
+                font: { size: 12 }
+            };
+            zoomTrendChart.update();
+        }
+
+        function closeChartZoom() {
+            const overlay = document.getElementById('chartZoomOverlay');
+            overlay.classList.remove('active');
+            if (zoomTrendChart) { zoomTrendChart.destroy(); zoomTrendChart = null; }
+            if (zoomRadarChart) { zoomRadarChart.destroy(); zoomRadarChart = null; }
         }
 
         function updateChartTabs() {
@@ -3570,6 +3974,11 @@
         // 点击遮罩关闭报告弹窗
         document.getElementById('reportModalOverlay').addEventListener('click', function(e) {
             if (e.target === this) closeShareReport();
+        });
+
+        // 点击遮罩关闭图表放大弹窗
+        document.getElementById('chartZoomOverlay').addEventListener('click', function(e) {
+            if (e.target === this) closeChartZoom();
         });
 
         // ===== 初始化 =====
