@@ -79,6 +79,179 @@
             margin-top: 4px;
         }
 
+        /* 档案选择器 */
+        .profile-switcher {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .profile-switcher select {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%236b6560' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 28px;
+        }
+
+        .profile-switcher select:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .profile-manage-btn {
+            width: 30px;
+            height: 30px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-primary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .profile-manage-btn:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        /* 档案管理列表 */
+        .profile-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .profile-item:last-child {
+            border-bottom: none;
+        }
+
+        .profile-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .profile-item-name {
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .profile-item-name .active-badge {
+            font-size: 0.7rem;
+            background: var(--accent-green);
+            color: #fff;
+            padding: 1px 6px;
+            border-radius: 4px;
+        }
+
+        .profile-item-exams {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .profile-item-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .profile-item-actions button {
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .profile-item-actions button:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        .profile-item-actions .delete-profile-btn:hover {
+            border-color: #e88a8a;
+            color: #e88a8a;
+        }
+
+        /* 档案内联输入 */
+        .profile-inline-input {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .profile-inline-input input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            background: var(--bg-primary);
+        }
+
+        .profile-inline-input input:focus {
+            border-color: var(--accent-green);
+        }
+
+        .profile-inline-input button {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .profile-inline-input .confirm-btn {
+            background: var(--accent-green);
+            color: #fff;
+        }
+
+        .profile-inline-input .cancel-btn {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .profile-inline-input .cancel-btn:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        .profile-empty {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
         /* 考试列表 */
         .exam-list {
             flex: 1;
@@ -578,44 +751,6 @@
         .subject-avg-analysis.normal { color: var(--text-primary); }
         .subject-avg-analysis.bad { color: #e88a8a; }
 
-        /* 目标设置 */
-        .target-display {
-            text-align: center;
-            padding: 20px;
-        }
-
-        .target-value {
-            font-size: 3rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 8px;
-        }
-
-        .target-label {
-            color: var(--text-secondary);
-            margin-bottom: 16px;
-        }
-
-        .target-progress {
-            height: 12px;
-            background: var(--border-color);
-            border-radius: 6px;
-            overflow: hidden;
-            margin-bottom: 8px;
-        }
-
-        .target-progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent-green), #9bc9a8);
-            border-radius: 6px;
-            transition: width 0.5s ease;
-        }
-
-        .target-status {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
         /* 空状态 */
         .empty-state {
             text-align: center;
@@ -713,6 +848,82 @@
             font-size: 1.5rem;
             cursor: pointer;
             color: var(--text-secondary);
+        }
+
+        /* 移动端侧边栏切换 */
+
+        /* 确认弹窗 */
+        .confirm-modal .modal {
+            max-width: 360px;
+            text-align: center;
+        }
+
+        .confirm-icon {
+            font-size: 2.8rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .confirm-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .confirm-message {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 24px;
+            white-space: pre-line;
+        }
+
+        .confirm-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .confirm-buttons .btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .confirm-cancel-btn {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .confirm-cancel-btn:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        .confirm-ok-btn {
+            background: #e88a8a;
+            color: #fff;
+            border: 1px solid #e88a8a;
+        }
+
+        .confirm-ok-btn:hover {
+            background: #d47575;
+            border-color: #d47575;
+        }
+
+        /* 确认弹窗动画 */
+        .confirm-modal .modal {
+            animation: confirmFadeIn 0.2s ease;
+        }
+
+        @keyframes confirmFadeIn {
+            from { opacity: 0; transform: scale(0.95) translateY(8px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
         }
 
         /* 移动端侧边栏切换 */
@@ -822,7 +1033,13 @@
                 <h1>成绩管家</h1>
                 <p>记录每一步进步</p>
             </div>
-            
+
+            <!-- 档案选择器 -->
+            <div class="profile-switcher" id="profileSwitcher">
+                <select id="profileSelect"></select>
+                <button class="profile-manage-btn" id="profileManageBtn" title="管理档案">⚙</button>
+            </div>
+
             <div class="exam-list" id="examList">
                 <!-- 考试列表将通过JS渲染 -->
             </div>
@@ -858,7 +1075,6 @@
             <div class="tabs">
                 <button class="tab active" data-tab="exam">考试详情</button>
                 <button class="tab" data-tab="trend">趋势分析</button>
-                <button class="tab" data-tab="target">目标</button>
                 <button class="tab" data-tab="settings">设置</button>
             </div>
 
@@ -894,30 +1110,22 @@
                 </div>
             </div>
 
-            <!-- 目标页 -->
-            <div class="content-section" id="tab-target">
-                <div class="card">
-                    <h2 class="card-title">目标设定</h2>
-                    <div class="target-display">
-                        <div class="target-value" id="targetValue">90</div>
-                        <div class="target-label">分</div>
-                        <div class="target-progress">
-                            <div class="target-progress-bar" id="targetProgressBar" style="width: 0%"></div>
-                        </div>
-                        <div class="target-status" id="targetStatus">点击设置目标</div>
-                    </div>
-                    <div style="margin-top: 20px;">
-                        <div class="form-group">
-                            <label>设定目标分数</label>
-                            <input type="number" id="targetInput" placeholder="输入目标分数" min="0" max="100">
-                        </div>
-                        <button class="btn btn-primary" id="setTargetBtn" style="width: 100%;">保存目标</button>
-                    </div>
-                </div>
-            </div>
-
             <!-- 设置页 -->
             <div class="content-section" id="tab-settings">
+                <!-- 档案管理 -->
+                <div class="card">
+                    <h2 class="card-title">档案管理</h2>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+                        每个档案是独立的成绩空间，适合区分不同孩子或不同学习阶段。
+                    </p>
+                    <div id="profileList">
+                        <!-- 档案列表将由JS渲染 -->
+                    </div>
+                    <div id="addProfileArea">
+                        <button class="btn-small" id="addProfileBtn" style="margin-top: 10px; background: var(--accent-green); color: #fff; border-color: var(--accent-green);">+ 新建档案</button>
+                    </div>
+                </div>
+
                 <div class="card">
                     <h2 class="card-title">数据管理</h2>
                     <div class="setting-item">
@@ -1027,19 +1235,15 @@
         </div>
     </div>
 
-    <!-- 删除确认模态框 -->
-    <div class="modal-overlay" id="confirmModal">
-        <div class="modal" style="max-width: 340px; text-align: center;">
-            <div style="margin-bottom: 16px;">
-                <div style="width: 56px; height: 56px; margin: 0 auto 16px; background: #fee; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                    <span style="font-size: 1.8rem;">⚠️</span>
-                </div>
-                <h3 class="modal-title" id="confirmModalTitle" style="margin-bottom: 8px;">确定删除？</h3>
-                <p id="confirmModalMessage" style="color: var(--text-secondary); font-size: 0.95rem;">此操作不可撤销</p>
-            </div>
-            <div class="btn-group" style="justify-content: center;">
-                <button type="button" class="btn btn-secondary" id="confirmModalCancel" style="flex:1;">取消</button>
-                <button type="button" class="btn btn-danger" id="confirmModalOk" style="flex:1; background: #e88a8a; color: #fff; border-color: #e88a8a;">删除</button>
+    <!-- 确认弹窗 -->
+    <div class="modal-overlay confirm-modal" id="confirmModal">
+        <div class="modal">
+            <span class="confirm-icon" id="confirmModalIcon">⚠️</span>
+            <div class="confirm-title" id="confirmModalTitle">确定删除？</div>
+            <div class="confirm-message" id="confirmModalMessage">此操作不可撤销</div>
+            <div class="confirm-buttons">
+                <button class="btn confirm-cancel-btn" id="confirmModalCancel">取消</button>
+                <button class="btn confirm-ok-btn" id="confirmModalOk">确定</button>
             </div>
         </div>
     </div>
@@ -1051,10 +1255,77 @@
 
         // ===== 数据存储键 =====
         const EXAMS_KEY = 'xueji_exams';
-        const TARGET_KEY = 'xueji_target';
+        const PROFILES_KEY = 'xueji_profiles';
+        const ACTIVE_PROFILE_KEY = 'xueji_active_profile';
 
-        // ===== 数据操作 =====
-        function getExams() {
+        // ===== 档案操作 =====
+        function getProfiles() {
+            const data = localStorage.getItem(PROFILES_KEY);
+            return data ? JSON.parse(data) : [];
+        }
+
+        function saveProfiles(profiles) {
+            localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+        }
+
+        function getActiveProfileId() {
+            return localStorage.getItem(ACTIVE_PROFILE_KEY) || 'default';
+        }
+
+        function setActiveProfileId(id) {
+            localStorage.setItem(ACTIVE_PROFILE_KEY, id);
+        }
+
+        function createProfile(name) {
+            const profiles = getProfiles();
+            const id = 'profile_' + Date.now();
+            profiles.push({ id, name, createdAt: new Date().toISOString() });
+            saveProfiles(profiles);
+            return id;
+        }
+
+        function updateProfile(id, name) {
+            const profiles = getProfiles();
+            const p = profiles.find(p => p.id === id);
+            if (p) { p.name = name; saveProfiles(profiles); }
+        }
+
+        function deleteProfile(id) {
+            let profiles = getProfiles();
+            profiles = profiles.filter(p => p.id !== id);
+            saveProfiles(profiles);
+            // 同时删除该档案下的考试
+            const exams = getExamsAll().filter(e => e.profileId !== id);
+            saveExams(exams);
+            // 如果删的是当前激活的档案，切换到第一个
+            if (getActiveProfileId() === id && profiles.length > 0) {
+                setActiveProfileId(profiles[0].id);
+            }
+        }
+
+        // 迁移旧数据：把没有 profileId 的考试归入默认档案
+        function migrateProfilesIfNeeded() {
+            const profiles = getProfiles();
+            if (profiles.length > 0) return; // 已迁移过
+
+            const exams = getExamsAll();
+            if (exams.length === 0) return; // 没有数据不需要迁移
+
+            const defaultId = createProfile('默认档案');
+            exams.forEach(e => { e.profileId = defaultId; });
+            saveExams(exams);
+            setActiveProfileId(defaultId);
+        }
+
+        // ===== 考试操作（按档案过滤） =====
+        function getExams(profileId) {
+            const data = localStorage.getItem(EXAMS_KEY);
+            const all = data ? JSON.parse(data) : [];
+            if (profileId) return all.filter(e => e.profileId === profileId);
+            return all;
+        }
+
+        function getExamsAll() {
             const data = localStorage.getItem(EXAMS_KEY);
             return data ? JSON.parse(data) : [];
         }
@@ -1063,18 +1334,10 @@
             localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
         }
 
-        function getTarget() {
-            const target = localStorage.getItem(TARGET_KEY);
-            return target ? parseInt(target) : 90;
-        }
-
-        function saveTarget(target) {
-            localStorage.setItem(TARGET_KEY, target);
-        }
-
         // ===== 渲染考试列表 =====
         async function renderExamList() {
-            const exams = await getExams();
+            const profileId = getActiveProfileId();
+            const exams = getExams(profileId);
             const container = document.getElementById('examList');
             
             if (exams.length === 0) {
@@ -1134,7 +1397,7 @@
 
         // ===== 渲染考试详情 =====
         async function renderExamDetail() {
-            const exams = await getExams();
+            const exams = getExams(getActiveProfileId());
             const container = document.getElementById('examContent');
             
             if (!currentExamId) {
@@ -1156,8 +1419,6 @@
             const subjects = exam.subjects || [];
             const totalScore = subjects.reduce((sum, s) => sum + s.score, 0);
             const avgScore = subjects.length > 0 ? (totalScore / subjects.length).toFixed(1) : 0;
-            const target = getTarget();
-            const targetTotal = target * subjects.length;
 
             container.innerHTML = `
                 <div class="exam-overview">
@@ -1199,7 +1460,7 @@
 
         // ===== 更新统计 =====
         async function updateStats() {
-            const exams = await getExams();
+            const exams = getExams(getActiveProfileId());
             let totalRecords = 0;
             let allScores = [];
             
@@ -1274,74 +1535,71 @@
         }
 
         function updateCharts() {
-            getExams().then(exams => {
-                const sortedExams = [...exams].sort((a, b) => new Date(a.startDate || a.createdAt) - new Date(b.startDate || b.createdAt));
-                
-                const examAverages = sortedExams.map(exam => {
-                    const subjects = exam.subjects || [];
-                    if (subjects.length === 0) return null;
-                    const total = subjects.reduce((sum, s) => sum + s.score, 0);
-                    return {
-                        name: exam.name,
-                        avg: total / subjects.length
-                    };
-                }).filter(e => e !== null);
+            const exams = getExams(getActiveProfileId());
+            const sortedExams = [...exams].sort((a, b) => new Date(a.startDate || a.createdAt) - new Date(b.startDate || b.createdAt));
+            
+            const examAverages = sortedExams.map(exam => {
+                const subjects = exam.subjects || [];
+                if (subjects.length === 0) return null;
+                const total = subjects.reduce((sum, s) => sum + s.score, 0);
+                return {
+                    name: exam.name,
+                    avg: total / subjects.length
+                };
+            }).filter(e => e !== null);
 
-                trendChart.data.labels = examAverages.map(e => e.name);
-                trendChart.data.datasets[0].data = examAverages.map(e => e.avg);
-                trendChart.update();
-            });
+            trendChart.data.labels = examAverages.map(e => e.name);
+            trendChart.data.datasets[0].data = examAverages.map(e => e.avg);
+            trendChart.update();
         }
 
         function updateChartTabs() {
-            getExams().then(exams => {
-                const container = document.getElementById('chartTabs');
-                const subjects = [...new Set(exams.flatMap(e => (e.subjects || []).map(s => s.name)))];
-                
-                let html = '<button class="chart-tab active" data-chart="total">总分趋势</button>';
-                subjects.forEach(subject => {
-                    html += `<button class="chart-tab" data-subject="${subject}">${subject}</button>`;
-                });
-                
-                container.innerHTML = html;
-                
-                container.querySelectorAll('.chart-tab').forEach(tab => {
-                    tab.addEventListener('click', function() {
-                        container.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
-                        this.classList.add('active');
-                        updateChartsBySubject(this.dataset.subject);
-                    });
+            const exams = getExams(getActiveProfileId());
+            const container = document.getElementById('chartTabs');
+            const subjects = [...new Set(exams.flatMap(e => (e.subjects || []).map(s => s.name)))];
+            
+            let html = '<button class="chart-tab active" data-chart="total">总分趋势</button>';
+            subjects.forEach(subject => {
+                html += `<button class="chart-tab" data-subject="${subject}">${subject}</button>`;
+            });
+            
+            container.innerHTML = html;
+            
+            container.querySelectorAll('.chart-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    container.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    updateChartsBySubject(this.dataset.subject);
                 });
             });
         }
 
         function updateChartsBySubject(subject) {
-            getExams().then(exams => {
-                const sortedExams = [...exams].sort((a, b) => new Date(a.startDate || a.createdAt) - new Date(b.startDate || b.createdAt));
-                
-                if (!subject || subject === 'total') {
-                    updateCharts();
-                    return;
-                }
+            const exams = getExams(getActiveProfileId());
+            const sortedExams = [...exams].sort((a, b) => new Date(a.startDate || a.createdAt) - new Date(b.startDate || b.createdAt));
+            
+            if (!subject || subject === 'total') {
+                updateCharts();
+                return;
+            }
 
-                const subjectData = sortedExams.map(exam => {
-                    const subjectRecord = (exam.subjects || []).find(s => s.name === subject);
-                    return subjectRecord ? {
-                        name: exam.name,
-                        score: subjectRecord.score
-                    } : null;
-                }).filter(e => e !== null);
+            const subjectData = sortedExams.map(exam => {
+                const subjectRecord = (exam.subjects || []).find(s => s.name === subject);
+                return subjectRecord ? {
+                    name: exam.name,
+                    score: subjectRecord.score
+                } : null;
+            }).filter(e => e !== null);
 
-                trendChart.data.labels = subjectData.map(e => e.name);
-                trendChart.data.datasets[0].data = subjectData.map(e => e.score);
-                trendChart.data.datasets[0].label = subject;
-                trendChart.update();
-            });
+            trendChart.data.labels = subjectData.map(e => e.name);
+            trendChart.data.datasets[0].data = subjectData.map(e => e.score);
+            trendChart.data.datasets[0].label = subject;
+            trendChart.update();
         }
 
         // ===== 科目分析 =====
         async function updateSubjectAnalysis() {
-            const exams = await getExams();
+            const exams = getExams(getActiveProfileId());
             const container = document.getElementById('subjectAnalysis');
             
             const subjectScores = {};
@@ -1370,33 +1628,6 @@
             `).join('');
         }
 
-        // ===== 目标 =====
-        async function updateTarget() {
-            const target = await getTarget();
-            const exams = await getExams();
-            
-            document.getElementById('targetValue').textContent = target;
-            document.getElementById('targetInput').value = target;
-
-            // 计算最近一次考试的平均分
-            if (exams.length > 0) {
-                const latestExam = exams.sort((a, b) => new Date(b.startDate || b.createdAt) - new Date(a.startDate || a.createdAt))[0];
-                const subjects = latestExam.subjects || [];
-                if (subjects.length > 0) {
-                    const avg = subjects.reduce((sum, s) => sum + s.score, 0) / subjects.length;
-                    const progress = Math.min((avg / target) * 100, 100);
-                    document.getElementById('targetProgressBar').style.width = progress + '%';
-                    
-                    if (avg >= target) {
-                        document.getElementById('targetStatus').textContent = '太棒了！已达到目标！';
-                        document.getElementById('targetStatus').style.color = '#7cb98b';
-                    } else {
-                        document.getElementById('targetStatus').textContent = `还差 ${(target - avg).toFixed(1)} 分`;
-                    }
-                }
-            }
-        }
-
         // ===== 模态框操作 =====
         async function openExamModal(examId = null) {
             const modal = document.getElementById('examModal');
@@ -1406,7 +1637,7 @@
             form.reset();
             
             if (examId) {
-                const exams = await getExams();
+                const exams = getExams(getActiveProfileId());
                 const exam = exams.find(e => e.id === examId);
                 if (exam) {
                     title.textContent = '编辑考试';
@@ -1447,7 +1678,7 @@
         async function editSubjectScore(subjectIndex) {
             if (!currentExamId) return;
             
-            const exams = await getExams();
+            const exams = getExams(getActiveProfileId());
             const examIndex = exams.findIndex(e => e.id === currentExamId);
             if (examIndex === -1) return;
             
@@ -1493,7 +1724,7 @@
         
         async function deleteExam(examId) {
             pendingDeleteExamId = examId;
-            const exams = await getExams();
+            const exams = getExams(getActiveProfileId());
             const exam = exams.find(e => e.id == examId);
             document.getElementById('confirmModalTitle').textContent = '确定删除考试？';
             document.getElementById('confirmModalMessage').textContent = exam ? `「${exam.name}」的所有成绩将被删除` : '此操作不可撤销';
@@ -1502,8 +1733,12 @@
 
         // 确认删除
         document.getElementById('confirmModalOk').addEventListener('click', async function() {
+            if (_confirmCallback) {
+                await _confirmCallback();
+                _confirmCallback = null;
+            }
             if (pendingDeleteExamId !== null) {
-                const exams = await getExams();
+                const exams = getExams(getActiveProfileId());
                 const newExams = exams.filter(e => e.id != pendingDeleteExamId);
                 await saveExams(newExams);
                 
@@ -1520,6 +1755,7 @@
         // 取消删除
         document.getElementById('confirmModalCancel').addEventListener('click', function() {
             pendingDeleteExamId = null;
+            _confirmCallback = null;
             document.getElementById('confirmModal').classList.remove('active');
         });
 
@@ -1527,6 +1763,7 @@
         document.getElementById('confirmModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 pendingDeleteExamId = null;
+                _confirmCallback = null;
                 this.classList.remove('active');
             }
         });
@@ -1535,10 +1772,11 @@
         document.getElementById('examForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const exams = await getExams();
+            const exams = getExams(getActiveProfileId());
             const examId = this.dataset.examId;
             
             const examData = {
+                profileId: getActiveProfileId(),
                 name: document.getElementById('examName').value,
                 startDate: document.getElementById('examStartDate').value,
                 endDate: document.getElementById('examEndDate').value,
@@ -1568,7 +1806,7 @@
         document.getElementById('scoreForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const exams = await getExams();
+            const exams = getExams(getActiveProfileId());
             const examIndex = exams.findIndex(e => e.id === currentExamId);
             
             if (examIndex === -1) return;
@@ -1599,15 +1837,176 @@
             await refreshAll();
         });
 
+        // ===== 档案 UI =====
+        function renderProfileSwitcher() {
+            const profiles = getProfiles();
+            const activeId = getActiveProfileId();
+            const select = document.getElementById('profileSelect');
+            select.innerHTML = profiles.map(p =>
+                `<option value="${p.id}" ${p.id === activeId ? 'selected' : ''}>${p.name}</option>`
+            ).join('');
+        }
+
+        function renderProfileManager() {
+            const profiles = getProfiles();
+            const activeId = getActiveProfileId();
+            const container = document.getElementById('profileList');
+
+            if (profiles.length === 0) {
+                container.innerHTML = '<div class="profile-empty">暂无档案</div>';
+                return;
+            }
+
+            container.innerHTML = profiles.map((p, i) => {
+                const examCount = getExams(p.id).length;
+                return `
+                    <div class="profile-item">
+                        <div class="profile-item-info">
+                            <div class="profile-item-name">
+                                ${p.name}
+                                ${p.id === activeId ? '<span class="active-badge">当前</span>' : ''}
+                            </div>
+                            <div class="profile-item-exams">${examCount} 条考试记录</div>
+                        </div>
+                        <div class="profile-item-actions">
+                            ${p.id !== activeId ? `<button onclick="switchToProfile(${i})" title="切换到该档案">👉</button>` : ''}
+                            <button onclick="renameProfile(${i})" title="重命名">✎</button>
+                            ${profiles.length > 1 ? `<button class="delete-profile-btn" onclick="confirmDeleteProfile(${i})" title="删除档案">🗑</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function switchToProfile(index) {
+            const profiles = getProfiles();
+            const id = profiles[index].id;
+            setActiveProfileId(id);
+            renderProfileSwitcher();
+            renderProfileManager();
+            refreshAll();
+        }
+
+        function renameProfile(index) {
+            const profiles = getProfiles();
+            const p = profiles[index];
+            if (!p) return;
+            // 找到对应的 profile-item，把名称替换为输入框
+            const items = document.querySelectorAll('.profile-item');
+            for (const item of items) {
+                const switchBtn = item.querySelector(`[onclick*="switchToProfile(${index})"]`);
+                if (!switchBtn) continue;
+                const nameEl = item.querySelector('.profile-item-name');
+                if (!nameEl) continue;
+                nameEl.innerHTML = `<input type="text" class="rename-input" value="${p.name}" maxlength="20" style="flex:1;padding:4px 8px;border:1px solid var(--accent-blue);border-radius:6px;font-size:0.9rem;font-family:inherit;outline:none;">`;
+                const input = nameEl.querySelector('input');
+                input.focus();
+                input.select();
+                const finish = () => {
+                    const v = input.value.trim();
+                    if (v && v !== p.name) updateProfile(p.id, v);
+                    renderProfileSwitcher();
+                    renderProfileManager();
+                };
+                input.addEventListener('keydown', e => {
+                    if (e.key === 'Enter') finish();
+                    if (e.key === 'Escape') renderProfileManager();
+                });
+                input.addEventListener('blur', finish);
+                break;
+            }
+        }
+
+        function confirmDeleteProfile(index) {
+            const profiles = getProfiles();
+            const p = profiles[index];
+            if (!p) return;
+            const examCount = getExams(p.id).length;
+            const msg = examCount > 0
+                ? `该档案下的 ${examCount} 条考试记录将一并删除，此操作不可撤销！`
+                : '此操作不可撤销';
+
+            showConfirmDialog({
+                icon: '🗑',
+                title: `确定删除档案「${p.name}」？`,
+                message: msg,
+                okText: '删除',
+                okClass: 'confirm-ok-btn',
+                onConfirm: () => {
+                    deleteProfile(p.id);
+                    renderProfileSwitcher();
+                    renderProfileManager();
+                    refreshAll();
+                }
+            });
+        }
+
+        // 通用确认弹窗（替代原生 confirm）
+        let _confirmCallback = null;
+        function showConfirmDialog({ icon, title, message, okText, okClass, onConfirm }) {
+            _confirmCallback = onConfirm || null;
+            const iconEl = document.getElementById('confirmModalIcon');
+            if (iconEl) iconEl.textContent = icon || '⚠️';
+            document.getElementById('confirmModalTitle').textContent = title || '确认';
+            document.getElementById('confirmModalMessage').textContent = message || '';
+            const okBtn = document.getElementById('confirmModalOk');
+            okBtn.textContent = okText || '确定';
+            okBtn.className = 'btn ' + (okClass || 'confirm-ok-btn');
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        function closeConfirmDialog() {
+            document.getElementById('confirmModal').classList.remove('active');
+            _confirmCallback = null;
+        }
+
+        function addNewProfile() {
+            const area = document.getElementById('addProfileArea');
+            area.innerHTML = `
+                <div class="profile-inline-input">
+                    <input type="text" id="newProfileNameInput" placeholder="输入档案名称" maxlength="20">
+                    <button class="confirm-btn" id="confirmAddProfileBtn">确定</button>
+                    <button class="cancel-btn" id="cancelAddProfileBtn">取消</button>
+                </div>
+            `;
+            const input = document.getElementById('newProfileNameInput');
+            input.focus();
+            const doAdd = () => {
+                const name = input.value.trim();
+                if (name) {
+                    const newId = createProfile(name);
+                    setActiveProfileId(newId);
+                    cancelAddProfile();  // 先恢复按钮
+                    renderProfileSwitcher();
+                    renderProfileManager();
+                    refreshAll();
+                } else {
+                    cancelAddProfile();
+                }
+            };
+            document.getElementById('confirmAddProfileBtn').addEventListener('click', doAdd);
+            document.getElementById('cancelAddProfileBtn').addEventListener('click', cancelAddProfile);
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') doAdd();
+                if (e.key === 'Escape') cancelAddProfile();
+            });
+        }
+
+        function cancelAddProfile() {
+            const area = document.getElementById('addProfileArea');
+            area.innerHTML = '<button class="btn-small" id="addProfileBtn" style="margin-top: 10px; background: var(--accent-green); color: #fff; border-color: var(--accent-green);">+ 新建档案</button>';
+            document.getElementById('addProfileBtn').addEventListener('click', addNewProfile);
+        }
+
         // ===== 刷新所有 =====
         async function refreshAll() {
+            renderProfileSwitcher();
             await renderExamList();
             await renderExamDetail();
             await updateStats();
             updateCharts();
             updateChartTabs();
             await updateSubjectAnalysis();
-            await updateTarget();
         }
 
         // ===== 标签页切换 =====
@@ -1623,28 +2022,21 @@
                     updateCharts();
                     updateChartTabs();
                 }
+                if (this.dataset.tab === 'settings') {
+                    renderProfileManager();
+                }
             });
-        });
-
-        // ===== 目标设置 =====
-        document.getElementById('setTargetBtn').addEventListener('click', async function() {
-            const target = parseInt(document.getElementById('targetInput').value);
-            if (target >= 0 && target <= 100) {
-                await saveTarget(target);
-                await updateTarget();
-                alert('目标已保存！');
-            }
         });
 
         // ===== 数据导出导入（Excel格式）=====
         document.getElementById('exportBtn').addEventListener('click', function() {
-            const exams = getExams();
-            const target = getTarget();
-            
+            const exams = getExams(getActiveProfileId());
+
             // 创建Excel数据
             const worksheetData = [
                 ['考试名称', '日期', '科目', '成绩', '满分', '备注']
             ];
+
             
             exams.forEach(exam => {
                 const date = exam.startDate || '';
@@ -1663,16 +2055,7 @@
             const ws = XLSX.utils.aoa_to_sheet(worksheetData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '成绩记录');
-            
-            // 添加目标表
-            const targetData = [
-                ['项目', '值'],
-                ['目标分数', target],
-                ['导出时间', new Date().toLocaleString()]
-            ];
-            const ws2 = XLSX.utils.aoa_to_sheet(targetData);
-            XLSX.utils.book_append_sheet(wb, ws2, '目标设置');
-            
+
             // 下载Excel文件
             XLSX.writeFile(wb, '成绩管家_' + new Date().toISOString().split('T')[0] + '.xlsx');
         });
@@ -1734,10 +2117,11 @@
                     
                     if (importedExams.length > 0) {
                         // 合并数据：同名同日期的覆盖，其他新增
-                        const existingExams = getExams();
+                        const existingExams = getExams(getActiveProfileId());
                         const mergedExams = [...existingExams];
                         
                         importedExams.forEach(importedExam => {
+                            importedExam.profileId = getActiveProfileId();
                             const existingIndex = mergedExams.findIndex(e => 
                                 e.name === importedExam.name && e.startDate === importedExam.startDate
                             );
@@ -1808,7 +2192,7 @@
 
         // ===== 示例数据 =====
         document.getElementById('demoBtn').addEventListener('click', async function() {
-            if ((await getExams()).length > 0) {
+            if (getExams(getActiveProfileId()).length > 0) {
                 // 使用自定义确认框
                 document.getElementById('confirmModalTitle').textContent = '添加示例数据？';
                 document.getElementById('confirmModalMessage').textContent = '已有数据，添加示例将追加，确定继续吗？';
@@ -1880,10 +2264,9 @@
                 }
             ];
             
-            const exams = await getExams();
-            demoExams.forEach(e => exams.push(e));
+            const exams = getExamsAll();
+            demoExams.forEach(e => { e.profileId = getActiveProfileId(); exams.push(e); });
             await saveExams(exams);
-            await saveTarget(85);
             
             currentExamId = demoExams[0].id;
             await refreshAll();
@@ -1908,8 +2291,25 @@
         document.getElementById('scoreModalCancel').addEventListener('click', closeScoreModal);
         document.getElementById('newExamBtn').addEventListener('click', () => openExamModal());
 
+        // ===== 档案事件 =====
+        document.getElementById('profileSelect').addEventListener('change', function() {
+            switchToProfile(this.value);
+        });
+
+        document.getElementById('profileManageBtn').addEventListener('click', function() {
+            // 切换到设置标签页
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.querySelector('.tab[data-tab="settings"]').classList.add('active');
+            document.getElementById('tab-settings').classList.add('active');
+            renderProfileManager();
+        });
+
+        document.getElementById('addProfileBtn').addEventListener('click', addNewProfile);
+
         // ===== 初始化 =====
         function initApp() {
+            migrateProfilesIfNeeded();
             initCharts();
             refreshAll();
         }
