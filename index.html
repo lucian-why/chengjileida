@@ -543,6 +543,65 @@
             max-height: 380px;
         }
 
+        .radar-summary {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .radar-summary-item {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+        }
+
+        .radar-summary-item.best {
+            background: rgba(76, 175, 80, 0.08);
+        }
+
+        .radar-summary-item.worst {
+            background: rgba(244, 67, 54, 0.06);
+        }
+
+        .radar-summary-icon {
+            font-size: 1.1rem;
+            margin-right: 6px;
+        }
+
+        .radar-summary-label {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin-right: 6px;
+        }
+
+        .radar-summary-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .radar-summary-detail {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin-left: 8px;
+        }
+
+        .radar-summary-rate {
+            font-weight: 700;
+            font-size: 0.9rem;
+            margin-left: 8px;
+        }
+
+        .best-rate {
+            color: #4CAF50;
+        }
+
+        .worst-rate {
+            color: #E8643C;
+        }
+
         .radar-empty {
             text-align: center;
             padding: 32px 20px;
@@ -1561,6 +1620,22 @@
                     <div class="radar-container">
                         <canvas id="radarChart"></canvas>
                     </div>
+                    <div class="radar-summary" id="radarSummary" style="display: none;">
+                        <div class="radar-summary-item best">
+                            <span class="radar-summary-icon">🏆</span>
+                            <span class="radar-summary-label">最强</span>
+                            <span class="radar-summary-name" id="radarBestName">--</span>
+                            <span class="radar-summary-detail" id="radarBestDetail">--</span>
+                            <span class="radar-summary-rate best-rate" id="radarBestRate">--%</span>
+                        </div>
+                        <div class="radar-summary-item worst">
+                            <span class="radar-summary-icon">💪</span>
+                            <span class="radar-summary-label">最弱</span>
+                            <span class="radar-summary-name" id="radarWorstName">--</span>
+                            <span class="radar-summary-detail" id="radarWorstDetail">--</span>
+                            <span class="radar-summary-rate worst-rate" id="radarWorstRate">--%</span>
+                        </div>
+                    </div>
                     <div class="radar-empty" id="radarEmpty" style="display: none;">
                         <p>选择考试后查看各科得分率分析</p>
                     </div>
@@ -2302,6 +2377,21 @@
             radarChart.data.labels = labels;
             radarChart.data.datasets = datasets;
             radarChart.update();
+
+            // 最强/最弱科目分析
+            const sorted = [...currentSubjects].map(s => ({
+                name: s.name, score: s.score, fullScore: s.fullScore,
+                rate: s.score / s.fullScore
+            })).sort((a, b) => b.rate - a.rate);
+            const summaryEl = document.getElementById('radarSummary');
+            document.getElementById('radarBestName').textContent = sorted[0].name;
+            document.getElementById('radarBestDetail').textContent = sorted[0].score + '/' + sorted[0].fullScore;
+            document.getElementById('radarBestRate').textContent = Math.round(sorted[0].rate * 100) + '%';
+            const worst = sorted[sorted.length - 1];
+            document.getElementById('radarWorstName').textContent = worst.name;
+            document.getElementById('radarWorstDetail').textContent = worst.score + '/' + worst.fullScore;
+            document.getElementById('radarWorstRate').textContent = Math.round(worst.rate * 100) + '%';
+            summaryEl.style.display = 'flex';
         }
 
         // ===== 图表 =====
@@ -3314,6 +3404,16 @@
                 if (this.dataset.tab === 'trend') {
                     updateChartTabs();
                     updateTrendChart();
+                    // 切换到成绩分析时，如果当前模式是雷达图且没有选中考试，默认选中最新
+                    if (trendAnalysisMode === 'radar' && !currentExamId) {
+                        const exams = getExams(getActiveProfileId());
+                        if (exams.length > 0) {
+                            const sorted = [...exams].sort((a, b) => new Date(b.startDate || b.createdAt) - new Date(a.startDate || a.createdAt));
+                            currentExamId = sorted[0].id;
+                            await renderExamList();
+                            updateRadarChart();
+                        }
+                    }
                 }
                 if (this.dataset.tab === 'settings') {
                     renderProfileManager();
@@ -3986,7 +4086,16 @@
             migrateProfilesIfNeeded();
             initCharts();
             initRadarChart();
+            checkFirstLaunch();
             refreshAll();
+        }
+
+        function checkFirstLaunch() {
+            if (localStorage.getItem('xueji_hasLaunched')) return;
+            const exams = getExams(getActiveProfileId());
+            if (exams.length > 0) return;
+            localStorage.setItem('xueji_hasLaunched', 'true');
+            addDemoData();
         }
         
         initApp();
