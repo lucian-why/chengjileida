@@ -21,7 +21,7 @@
             --accent-blue: #7ca9c9;
             --accent-purple: #9b8dc4;
             --border-color: #e8e4de;
-            --shadow-soft: 0 2px 12px rgba(45, 42, 38, 0.06);
+            --shadow-soft: 0 2px 12px rgba(64, 59, 52, 0.06);
             --shadow-card: 0 4px 20px rgba(45, 42, 38, 0.08);
             --sidebar-width: 240px;
         }
@@ -2092,7 +2092,7 @@
                             if (s.gradeRank) rankHtml += `<span class="rank-tag">校${s.gradeRank}</span>`;
                             return `
                             <div class="subject-card" onclick="editSubjectScore(${index})">
-                                <div class="name">${s.name}</div>
+                                <div class="name">${s.name}${s.notes ? ' <span class="note-icon">📝</span>' : ''}</div>
                                 <div class="score ${s.score >= 90 ? 'good' : (s.score >= 60 ? 'normal' : 'bad')}">${s.score}</div>
                                 ${rankHtml ? `<div class="rank-info">${rankHtml}</div>` : ''}
                             </div>
@@ -2973,13 +2973,61 @@
                 title.textContent = '新建考试';
                 document.getElementById('examStartDate').value = new Date().toISOString().split('T')[0];
                 delete form.dataset.examId;
+                // 从最近一次考试中记忆班级人数和年级人数
+                const exams = getExams(getActiveProfileId());
+                const sorted = [...exams].sort((a, b) => new Date(b.startDate || b.createdAt || 0) - new Date(a.startDate || a.createdAt || 0));
+                if (sorted.length > 0) {
+                    const last = sorted[0];
+                    document.getElementById('examClassTotal').value = last.classTotal || '';
+                    document.getElementById('examGradeTotal').value = last.gradeTotal || '';
+                }
             }
             
             modal.classList.add('active');
         }
 
+        document.getElementById('examStartDate').addEventListener('change', function() {
+            const val = this.value;
+            if (val) {
+                const d = new Date(val);
+                d.setDate(d.getDate() + 1);
+                document.getElementById('examEndDate').value = d.toISOString().split('T')[0];
+            }
+        });
+
         function closeExamModal() {
             document.getElementById('examModal').classList.remove('active');
+        }
+
+        // 根据科目名从历史考试中查找最近一次的满分值
+        function getLastFullScore(subjectName) {
+            if (!subjectName) return null;
+            const exams = getExams(getActiveProfileId());
+            // 按日期倒序查找该科目最近一次的满分
+            const sorted = [...exams].sort((a, b) => new Date(b.startDate || b.createdAt || 0) - new Date(a.startDate || a.createdAt || 0));
+            for (let i = 0; i < sorted.length; i++) {
+                const subjects = sorted[i].subjects || [];
+                const found = subjects.find(s => s.name === subjectName && s.fullScore);
+                if (found) return found.fullScore;
+            }
+            return null;
+        }
+
+        // 从最近一场有科目的考试中继承科目模板（科目名+满分，不继承分数和排名）
+        function getLastExamSubjectTemplate() {
+            const exams = getExams(getActiveProfileId());
+            const sorted = [...exams].sort((a, b) => new Date(b.startDate || b.createdAt || 0) - new Date(a.startDate || a.createdAt || 0));
+            for (let i = 0; i < sorted.length; i++) {
+                const subjects = sorted[i].subjects || [];
+                if (subjects.length > 0) {
+                    return subjects.map(s => ({
+                        name: s.name,
+                        score: null,
+                        fullScore: s.fullScore || 100
+                    }));
+                }
+            }
+            return [];
         }
 
         function openScoreModal() {
@@ -2997,6 +3045,17 @@
             document.getElementById('scoreModalTitle').textContent = '添加成绩';
             document.getElementById('scoreModal').classList.add('active');
         }
+
+        // 科目名变化时自动填充历史满分
+        document.getElementById('subjectName').addEventListener('input', function() {
+            // 编辑模式下不自动覆盖满分（保留用户已编辑的值）
+            if (document.getElementById('scoreForm').dataset.subjectIndex !== undefined) return;
+            const fullScore = getLastFullScore(this.value.trim());
+            if (fullScore) {
+                document.getElementById('scoreFull').value = fullScore;
+                updateScoreMax();
+            }
+        });
 
         // 编辑科目成绩
         async function editSubjectScore(subjectIndex) {
@@ -3127,8 +3186,11 @@
                     exams[index] = examData;
                 }
             } else {
+                // 新建：从最近一场有科目的考试中继承科目模板（科目名+满分，不继承分数）
+                const lastExamTemplate = getLastExamSubjectTemplate();
                 examData.id = Date.now();
                 examData.createdAt = new Date().toISOString();
+                examData.subjects = lastExamTemplate;
                 exams.push(examData);
             }
             
@@ -3923,7 +3985,6 @@
             }
 
             const subjectRows = subjects.map(s => {
-                const pct = s.fullScore > 0 ? (s.score / s.fullScore * 100).toFixed(1) : '--';
                 const level = s.score >= 90 ? 'rep-good' : (s.score >= 60 ? 'rep-normal' : 'rep-bad');
                 let rankTag = '';
                 if (s.classRank) rankTag += `<span class="rep-subj-rank">班${s.classRank}</span>`;
@@ -3931,7 +3992,6 @@
                 return `<div class="rep-subject-row">
                     <div class="rep-subj-name">${s.name}</div>
                     <div class="rep-subj-score ${level}">${s.score}<small>/${s.fullScore}</small></div>
-                    <div class="rep-subj-pct">${pct}%</div>
                     <div class="rep-subj-ranks">${rankTag}</div>
                 </div>`;
             }).join('');
