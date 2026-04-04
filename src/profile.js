@@ -1,22 +1,92 @@
-import state from './store.js';
-import { getProfiles, saveProfiles, getActiveProfileId, setActiveProfileId, createProfile, updateProfile, deleteProfile, getExams } from './storage.js';
-import { showConfirmDialog, showToast } from './modal.js';
+﻿import state from './store.js';
+import { getProfiles, getActiveProfileId, setActiveProfileId, createProfile, updateProfile, deleteProfile, getExams } from './storage.js';
+import { showConfirmDialog } from './modal.js';
 
-// 注入外部依赖
 let _refreshAll = null;
+let _profileSwitcherBound = false;
 
 export function setDependencies({ refreshAll }) {
     _refreshAll = refreshAll;
 }
 
-// ===== 档案 UI =====
+function closeProfileSwitcher() {
+    const shell = document.getElementById('profileSelectShell');
+    const trigger = document.getElementById('profileSelectTrigger');
+    if (!shell || !trigger) return;
+    shell.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+}
+
+function toggleProfileSwitcher() {
+    const shell = document.getElementById('profileSelectShell');
+    const trigger = document.getElementById('profileSelectTrigger');
+    if (!shell || !trigger) return;
+    const willOpen = !shell.classList.contains('open');
+    shell.classList.toggle('open', willOpen);
+    trigger.setAttribute('aria-expanded', String(willOpen));
+}
+
+function bindProfileSwitcherEvents() {
+    if (_profileSwitcherBound) return;
+
+    const trigger = document.getElementById('profileSelectTrigger');
+    const menu = document.getElementById('profileSelectMenu');
+    const shell = document.getElementById('profileSelectShell');
+    if (!trigger || !menu || !shell) return;
+
+    trigger.addEventListener('click', function(event) {
+        event.stopPropagation();
+        toggleProfileSwitcher();
+    });
+
+    menu.addEventListener('click', function(event) {
+        const option = event.target.closest('[data-profile-index]');
+        if (!option) return;
+        switchToProfile(option.dataset.profileIndex);
+        closeProfileSwitcher();
+    });
+
+    document.addEventListener('click', function(event) {
+        if (!shell.contains(event.target)) {
+            closeProfileSwitcher();
+        }
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') closeProfileSwitcher();
+    });
+
+    _profileSwitcherBound = true;
+}
+
 export function renderProfileSwitcher() {
     const profiles = getProfiles();
     const activeId = getActiveProfileId();
-    const select = document.getElementById('profileSelect');
-    select.innerHTML = profiles.map((p, i) =>
-        `<option value="${i}" ${p.id === activeId ? 'selected' : ''}>${p.name}</option>`
-    ).join('');
+    const activeProfile = profiles.find(profile => profile.id === activeId) || profiles[0] || null;
+    const valueEl = document.getElementById('profileSelectValue');
+    const metaEl = document.getElementById('profileSelectMeta');
+    const menu = document.getElementById('profileSelectMenu');
+
+    if (valueEl) valueEl.textContent = activeProfile ? activeProfile.name : '暂无档案';
+    if (metaEl) metaEl.textContent = activeProfile ? `${getExams(activeProfile.id).length} 场考试` : '点击新建档案';
+
+    if (menu) {
+        menu.innerHTML = profiles.map((profile, index) => {
+            const isActive = profile.id === activeId;
+            const examCount = getExams(profile.id).length;
+            return `
+                <button type="button" class="profile-select-option ${isActive ? 'active' : ''}" data-profile-index="${index}" role="option" aria-selected="${isActive}">
+                    <span class="profile-select-option-main">
+                        <span class="profile-select-option-name">${profile.name}</span>
+                        ${isActive ? '<span class="profile-select-option-badge">当前</span>' : ''}
+                    </span>
+                    <span class="profile-select-option-meta">${examCount} 场考试</span>
+                </button>
+            `;
+        }).join('');
+    }
+
+    bindProfileSwitcherEvents();
 }
 
 export function renderProfileManager() {
@@ -38,13 +108,13 @@ export function renderProfileManager() {
                         ${p.name}
                         ${p.id === activeId ? '<span class="active-badge">当前</span>' : ''}
                     </div>
-                    <div class="profile-item-exams">${examCount} 条考试记录</div>
+                    <div class="profile-item-exams">${examCount} 场考试记录</div>
                 </div>
                 <div class="profile-item-actions" onclick="event.stopPropagation()">
                     <button class="share-profile-btn" onclick="openShareProfileReport(${i})" title="分享档案报告">📤 分享报告</button>
                     <div class="action-btns">
                         <button onclick="renameProfile(${i})" title="重命名">✎</button>
-                        ${profiles.length > 1 ? `<button class="delete-profile-btn" onclick="confirmDeleteProfile(${i})" title="删除档案">🗑</button>` : ''}
+                        ${profiles.length > 1 ? `<button class="delete-profile-btn" onclick="confirmDeleteProfile(${i})" title="删除档案">🗏</button>` : ''}
                     </div>
                 </div>
             </div>
@@ -54,20 +124,26 @@ export function renderProfileManager() {
 
 export function switchToProfile(index) {
     const profiles = getProfiles();
-    const id = profiles[index].id;
-    // 已经是当前档案则不切换
-    if (id === getActiveProfileId()) return;
-    setActiveProfileId(id);
+    const profile = profiles[Number(index)];
+    if (!profile) return;
+
+    if (profile.id === getActiveProfileId()) {
+        closeProfileSwitcher();
+        return;
+    }
+
+    setActiveProfileId(profile.id);
     renderProfileSwitcher();
     renderProfileManager();
-    // 切换档案后，默认选中该档案下最新的考试
-    const exams = getExams(id);
+
+    const exams = getExams(profile.id);
     if (exams.length > 0) {
         const sorted = [...exams].sort((a, b) => new Date(b.startDate || b.createdAt) - new Date(a.startDate || a.createdAt));
         state.currentExamId = sorted[0].id;
     } else {
         state.currentExamId = null;
     }
+
     if (_refreshAll) _refreshAll();
 }
 
@@ -75,7 +151,7 @@ export function renameProfile(index) {
     const profiles = getProfiles();
     const p = profiles[index];
     if (!p) return;
-    // 找到对应的 profile-item，把名称替换为输入框
+
     const items = document.querySelectorAll('.profile-item');
     for (const item of items) {
         if (!item.getAttribute('onclick')?.includes(`switchToProfile(${index})`)) continue;
@@ -106,7 +182,7 @@ export function confirmDeleteProfile(index) {
     if (!p) return;
     const examCount = getExams(p.id).length;
     const msg = examCount > 0
-        ? `该档案下的 ${examCount} 条考试记录将一并删除，此操作不可撤销！`
+        ? `该档案下的 ${examCount} 场考试记录将一并删除，此操作不可撤销`
         : '此操作不可撤销';
 
     showConfirmDialog({
@@ -140,7 +216,7 @@ export function addNewProfile() {
         if (name) {
             const newId = createProfile(name);
             setActiveProfileId(newId);
-            cancelAddProfile();  // 先恢复按钮
+            cancelAddProfile();
             renderProfileSwitcher();
             renderProfileManager();
             if (_refreshAll) _refreshAll();

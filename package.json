@@ -11,5 +11,8 @@
   "devDependencies": {
     "vite": "^6.4.1",
     "vite-plugin-singlefile": "^2.3.2"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.101.1"
   }
 }
