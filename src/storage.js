@@ -74,7 +74,7 @@ function migrateProfilesIfNeeded() {
     }
 
     const exams = getExamsAll();
-    const defaultId = createProfile('默认档案');
+    const defaultId = createProfile('人生档案');
     setActiveProfileId(defaultId);
 
     if (exams.length === 0) return;
