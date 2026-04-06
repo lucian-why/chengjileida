@@ -1,7 +1,7 @@
 ﻿import state from './store.js';
 import { migrateProfilesIfNeeded, getExams, getExamsAll, saveExams, getActiveProfileId } from './storage.js';
 import { initSupabase, isAuthEnabled, getCurrentUser, onAuthStateChange, signOut } from './auth.js';
-import { showLoginPage, hideLoginPage, renderAuthStatus, clearAuthStatus, setLoginSuccessHandler, setLogoutHandler } from './login-ui.js';
+import { showLoginPage, hideLoginPage, renderAuthStatus, renderGuestAuthStatus, clearAuthStatus, setLoginSuccessHandler, setLogoutHandler } from './login-ui.js';
 import { showConfirmDialog, showToast } from './modal.js';
 import { setUpdateTrendChart, updateScoreMax } from './utils.js';
 import { renderExamList, selectExam, selectSubject, setDependencies as setExamListDeps } from './exam-list.js';
@@ -255,7 +255,7 @@ function setupAuthHandlers() {
     setLoginSuccessHandler(handleSignedIn);
     setLogoutHandler(async () => {
         await signOut();
-        clearAuthStatus();
+        renderGuestAuthStatus();
         closeCloudSyncPanel();
         hideLoginPage();
         showToast({ icon: '👋', title: '已退出登录', message: '网页仍可继续使用，云端同步功能需要重新登录。' });
@@ -265,7 +265,7 @@ function setupAuthHandlers() {
 
     onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_OUT') {
-            clearAuthStatus();
+            renderGuestAuthStatus();
             closeCloudSyncPanel();
             hideLoginPage();
             return;
@@ -292,7 +292,7 @@ async function startApp() {
     setupAuthHandlers();
     const user = await getCurrentUser();
     if (!user) {
-        clearAuthStatus();
+        renderGuestAuthStatus();
         hideLoginPage();
         return;
     }

@@ -156,6 +156,7 @@ function ensureLoginUi() {
                 <span class="auth-status-label">云端账户</span>
                 <span class="auth-status-value" id="authStatusValue">未登录</span>
             </div>
+            <button type="button" id="authLoginBtn" class="auth-login-btn hidden">登录</button>
             <button type="button" id="authLogoutBtn" class="auth-logout-btn">退出</button>
         `;
         const sidebarHeader = document.querySelector('.sidebar-header');
@@ -479,6 +480,7 @@ function bindUiEvents() {
     const accountLabel = document.getElementById('loginAccountLabel');
     const codeInput = document.getElementById('loginCodeInput');
     const pwdInput = document.getElementById('loginPwdInput');
+    const loginBtn = document.getElementById('authLoginBtn');
     const logoutBtn = document.getElementById('authLogoutBtn');
     const closeBtn = document.getElementById('loginCloseBtn');
     const dismiss = () => hideLoginPage();
@@ -598,6 +600,10 @@ function bindUiEvents() {
         if (event.key === 'Escape') { event.preventDefault(); dismiss(); }
     });
 
+    loginBtn?.addEventListener('click', () => {
+        showLoginPage('登录后可启用云端备份与多端同步。');
+    });
+
     // 退出
     logoutBtn?.addEventListener('click', async () => {
         if (onLogout) await onLogout();
@@ -663,6 +669,8 @@ export function renderAuthStatus(user) {
     ensureLoginUi();
     const authBar = document.getElementById('authStatusBar');
     const value = document.getElementById('authStatusValue');
+    const loginBtn = document.getElementById('authLoginBtn');
+    const logoutBtn = document.getElementById('authLogoutBtn');
 
     const displayText = user?.nickname || user?.email || user?.phone || '已登录';
     if (value) {
@@ -671,6 +679,26 @@ export function renderAuthStatus(user) {
         value.title = '点击修改昵称';
         value.onclick = () => openNicknameEditor(user, displayText);
     }
+    loginBtn?.classList.add('hidden');
+    logoutBtn?.classList.remove('hidden');
+    authBar?.classList.remove('hidden');
+}
+
+export function renderGuestAuthStatus() {
+    ensureLoginUi();
+    const authBar = document.getElementById('authStatusBar');
+    const value = document.getElementById('authStatusValue');
+    const loginBtn = document.getElementById('authLoginBtn');
+    const logoutBtn = document.getElementById('authLogoutBtn');
+
+    if (value) {
+        value.textContent = '未登录';
+        value.style.cursor = 'default';
+        value.title = '登录后可使用云端同步';
+        value.onclick = null;
+    }
+    loginBtn?.classList.remove('hidden');
+    logoutBtn?.classList.add('hidden');
     authBar?.classList.remove('hidden');
 }
 
@@ -744,5 +772,16 @@ function openNicknameEditor(user, currentNickname) {
 
 export function clearAuthStatus() {
     const authBar = document.getElementById('authStatusBar');
+    const value = document.getElementById('authStatusValue');
+    const loginBtn = document.getElementById('authLoginBtn');
+    const logoutBtn = document.getElementById('authLogoutBtn');
+
+    if (value) {
+        value.onclick = null;
+        value.title = '';
+        value.style.cursor = 'default';
+    }
+    loginBtn?.classList.add('hidden');
+    logoutBtn?.classList.remove('hidden');
     authBar?.classList.add('hidden');
 }

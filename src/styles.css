@@ -2245,12 +2245,31 @@ body.auth-locked {
     word-break: break-all;
 }
 
+.auth-login-btn,
 .auth-logout-btn {
     padding: 8px 14px;
-    background: var(--bg-primary);
-    color: var(--text-secondary);
     border: 1px solid var(--border-color);
     font-size: 0.84rem;
+}
+
+.auth-login-btn {
+    background: linear-gradient(135deg, #7ca9c9 0%, #8fb7a3 100%);
+    color: #fff;
+}
+
+.auth-logout-btn {
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+}
+
+.auth-login-btn.hidden,
+.auth-logout-btn.hidden {
+    display: none;
+}
+
+.auth-login-btn:hover {
+    opacity: 0.92;
+    box-shadow: 0 8px 18px rgba(124, 169, 201, 0.18);
 }
 
 .auth-logout-btn:hover {
