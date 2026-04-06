@@ -231,7 +231,7 @@ async function renderCloudSyncContent() {
         renderLists(user, localProfiles, _latestCloudProfiles);
     } catch (error) {
         setStatus(error.message || '云端同步面板加载失败', 'error');
-        document.getElementById('cloudSyncBody').innerHTML = '<div class="cloud-sync-empty"><div class="cloud-sync-empty-icon">⚠️</div><div class="cloud-sync-empty-title">云端同步暂时不可用</div><div class="cloud-sync-empty-desc">请检查 cloud_profiles 表、RLS 或网络配置后重试。</div></div>';
+        document.getElementById('cloudSyncBody').innerHTML = '<div class="cloud-sync-empty"><div class="cloud-sync-empty-icon">⚠️</div><div class="cloud-sync-empty-title">云端同步暂时不可用</div><div class="cloud-sync-empty-desc">请检查 cloud_profiles 集合、云函数权限或网络配置后重试。</div></div>';
     }
 }
 
@@ -304,4 +304,5 @@ export async function openCloudSyncPanel() {
 export function closeCloudSyncPanel() {
     document.getElementById('cloudSyncOverlay')?.classList.remove('active');
 }
+
 

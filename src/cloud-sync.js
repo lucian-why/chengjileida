@@ -34,10 +34,13 @@ function formatTCBError(error, fallback) {
         return '腾讯云同步云函数尚未部署，请先创建 listCloudProfiles、getCloudProfileData、uploadCloudProfile、deleteCloudProfiles。';
     }
     if (/cloud_profiles/i.test(message)) {
-        return '腾讯云 cloud_profiles 集合尚未创建，请先在云开发数据库中创建。';
+        return '腾讯云 cloud_profiles 集合尚未创建，请先在云开发文档型数据库中创建该集合。';
     }
-    if (/未登录|登录已过期|获取当前登录用户失败|PERMISSION_DENIED/i.test(message)) {
-        return '当前云端登录态无效，请重新登录后再试。';
+    if (/未登录|获取当前登录用户失败/i.test(message)) {
+        return '当前尚未完成云端登录，请重新登录后再试。';
+    }
+    if (/登录已过期|PERMISSION_DENIED/i.test(message)) {
+        return '当前云端同步请求被拒绝，请检查登录方式、集合权限或云函数权限后重试。';
     }
     return message;
 }
@@ -155,3 +158,5 @@ export function getLocalProfileSummaries() {
         dataSize: bundle.dataSize
     }));
 }
+
+
