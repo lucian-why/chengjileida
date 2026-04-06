@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Module 测试</title>
+</head>
+<body>
+    <h1>Module Script 测试</h1>
+    <button onclick="testClick()">点击测试（普通函数）</button>
+    <button onclick="moduleClick()">点击测试（module 函数）</button>
+    <p id="result">等待点击...</p>
+
+    <!-- 普通 script：直接声明全局函数 -->
+    <script>
+        function testClick() {
+            document.getElementById('result').textContent = '✅ 普通函数正常工作！';
+            console.log('普通函数被调用');
+        }
+        console.log('普通 script 已执行');
+    </script>
+
+    <!-- Module script: 赋值到 window -->
+    <script type="module">
+        function moduleClick() {
+            document.getElementById('result').textContent = '✅ Module 函数正常工作！';
+            console.log('Module 函数被调用');
+        }
+        window.moduleClick = moduleClick;
+        console.log('Module script 已执行, window.moduleClick =', typeof window.moduleClick);
+
+        // 检查时序
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded: window.moduleClick =', typeof window.moduleClick);
+        });
+        window.addEventListener('load', () => {
+            console.log('Load: window.moduleClick =', typeof window.moduleClick);
+            document.getElementById('result').textContent = '✅ 页面加载完成！请点击按钮测试。' +
+                '\n普通函数(testClick): ' + (typeof testClick === 'function' ? '✅' : '❌') +
+                '\nModule函数(moduleClick): ' + (typeof window.moduleClick === 'function' ? '✅' : '❌');
+        });
+    </script>
+</body>
+</html>

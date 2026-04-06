@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Debug 检测 - 新版</title></head>
+<body>
+<iframe id="frame" style="width:100%;height:80vh;border:2px solid #ccc"></iframe>
+<pre id="output" style="background:#222;color:#0f0;padding:15px;white-space:pre-wrap;max-height:30vh;overflow:auto;font-size:13px"></pre>
+
+<script>
+const out = document.getElementById('output');
+function log(msg) { out.textContent += msg + '\n'; }
+
+// 默认加载新版
+document.getElementById('frame').src = 'dist/index.html';
+
+const frame = document.getElementById('frame');
+frame.addEventListener('load', function() {
+    setTimeout(() => {
+        try {
+            const doc = frame.contentDocument || frame.contentWindow.document;
+            const win = frame.contentWindow;
+            
+            log('=== dist/index.html (新版) 检测结果 ===\n');
+            
+            // 1. 全局函数
+            log('1. 全局函数:');
+            log(`   selectExam = ${typeof win.selectExam}`);
+            log(`   renderExamDetail = ${typeof win.renderExamDetail}`);
+            log(`   openScoreModal = ${typeof win.openScoreModal}`);
+            
+            // 2. exam-list
+            const list = doc.getElementById('exam-list');
+            log(`\n2. 考试列表容器 #exam-list:`);
+            if (!list) {
+                log(`   ❌ 不存在! 尝试搜索...`);
+                const allDivs = doc.querySelectorAll('[id*="exam"], [class*="exam"]');
+                allDivs.forEach(d => log(`   找到: #${d.id} .${d.className}`));
+            } else {
+                log(`   ✅ 存在, 子元素数: ${list.children.length}`);
+                
+                // 3. 找考试项
+                const items = list.querySelectorAll('[onclick*="selectExam"], [data-id], .exam-item, li');
+                log(`\n3. 带 onclick/data-id 的项目: ${items.length}`);
+                
+                if (items.length > 0) {
+                    const first = items[0];
+                    log(`   第一项: <${first.tagName.toLowerCase()}> class="${first.className}"`);
+                    log(`   onclick: "${first.getAttribute('onclick') || '(无)'}"`);
+                    
+                    const cs = win.getComputedStyle(first);
+                    log(`\n4. 计算样式:`);
+                    log(`   pointer-events=${cs.pointerEvents}, cursor=${cs.cursor}`);
+                    log(`   display=${cs.display}, visibility=${cs.visibility}`);
+                    log(`   opacity=${cs.opacity}, position=${cs.position}`);
+                    
+                    // 5. elementFromPoint
+                    const rect = first.getBoundingClientRect();
+                    const frameRect = frame.getBoundingClientRect();
+                    log(`\n5. 位置 (相对iframe): top=${rect.top.toFixed(1)}, left=${rect.left.toFixed(1)}`);
+                    log(`   size: ${rect.width.toFixed(1)} x ${rect.height.toFixed(1)}`);
+                    
+                    if (rect.width > 0 && rect.height > 0) {
+                        const cx = rect.left + rect.width / 2;
+                        const cy = rect.top + rect.height / 2;
+                        const hitEl = doc.elementFromPoint(cx, cy);
+                        log(`\n6. elementFromPoint (${cx.toFixed(1)}, ${cy.toFixed(1)}):`);
+                        if (hitEl) {
+                            log(`   命中: <${hitEl.tagName.toLowerCase()}> .${hitEl.className} #${hitEl.id || ''}`);
+                            log(`   是否是考试项本身: ${hitEl === first || first.contains(hitEl) ? '✅ 是' : '❌ 否，被遮挡!'}`);
+                            
+                            if (hitEl !== first && !first.contains(hitEl)) {
+                                log(`   ⚠️ 遮挡链:`);
+                                let el = hitEl;
+                                for (let i = 0; i < 6 && el; i++) {
+                                    const eCs = win.getComputedStyle(el);
+                                    log(`     [${i}] <${el.tagName.toLowerCase()}> .${el.className.substring(0,40)} pos=${eCs.position} z=${eCs.zIndex} pe=${eCs.pointerEvents}`);
+                                    el = el.parentElement;
+                                }
+                            }
+                        } else {
+                            log(`   (无元素命中)`);
+                        }
+                    } else {
+                        log(`\n   ⚠️ 元素尺寸为0，可能不可见!`);
+                    }
+                } else if (list.innerHTML.trim()) {
+                    log(`   列表有内容但选择器没匹配到，预览:\n${list.innerHTML.substring(0, 400)}`);
+                } else {
+                    log(`   列表为空（可能没有数据）`);
+                }
+            }
+            
+            // 7. 页面状态
+            log(`\n7. 页面状态: readyState=${doc.readyState}, body children=${doc.body.children.length}`);
+            
+        } catch(e) {
+            log(`错误: ${e.message}\n这通常是因为跨域 iframe 无法访问内部内容`);
+            log(`提示: file:// 协议下 iframe 可能受同源策略限制`);
+        }
+    }, 1500);
+});
+</script>
+</body>
+</html>
