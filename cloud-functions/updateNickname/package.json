@@ -1,0 +1,1 @@
+{"name": "updateNickname", "version": "1.0.0", "description": "更新用户昵称", "main": "index.js", "dependencies": {"@cloudbase/node-sdk": "^2.0.0"}}

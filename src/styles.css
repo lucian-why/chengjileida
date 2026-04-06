@@ -2631,5 +2631,47 @@ body.auth-locked {
     gap: 10px;
 }
 
+/* ===== 登录页改造新增样式 ===== */
+
+/* 底部辅助链接区域 */
+.login-footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.login-link {
+    color: #7ca9c9;
+    text-decoration: none;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.login-link:hover {
+    color: #4f46e5;
+    text-decoration: underline;
+}
+
+/* 模式切换提示文字 */
+#modeSwitchHint {
+    animation: fadeSlideIn 0.3s ease-out;
+}
+
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 昵称显示区域的 hover 效果 */
+#authStatusValue:hover {
+    background: rgba(74, 70, 229, 0.08);
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
 
 

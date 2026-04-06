@@ -28,7 +28,7 @@ async function updateLoginState(userId, loginMethod) {
 
   await db.collection('users').doc(userId).update({
     token,
-    tokenExpireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7天
+    tokenExpireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30天
     lastLoginMethod: loginMethod,
     lastLoginAt: new Date(),
     loginCount: _.inc(1),
@@ -171,7 +171,7 @@ exports.main = async (event, context) => {
       data: {
         token,
         user: buildUserResponse({ _id: userId, email, nickname }, token),
-        expiresIn: 604800
+        expiresIn: 2592000
       }
     };
 

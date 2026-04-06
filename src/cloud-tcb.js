@@ -80,7 +80,16 @@ async function loadCloudbaseModule() {
 function buildError(error, fallback) {
     const rawMessage = error?.message || error?.msg || error?.error_description || fallback || '腾讯云服务暂时不可用';
     const message = typeof rawMessage === 'string' ? rawMessage : JSON.stringify(rawMessage);
-    return error instanceof Error ? new Error(message) : new Error(message);
+    const wrapped = error instanceof Error ? new Error(message) : new Error(message);
+    // 保留原始错误的自定义属性（如 code / registered 等），供上层判断
+    if (error && typeof error === 'object') {
+        for (const key of Object.keys(error)) {
+            if (key !== 'message' && key !== 'stack') {
+                (wrapped)[key] = error[key];
+            }
+        }
+    }
+    return wrapped;
 }
 
 /**
@@ -92,7 +101,7 @@ function mapCloudUser(data) {
     return {
         id: user.id || user._id || '',
         email: user.email || '',
-        nickname: user.nickname || (user.email ? user.email.split('@')[0] : '云端用户'),
+        nickname: user.nickname || (user.email ? user.email.split('@')[0] : (user.phone || '云端用户')),
         avatarUrl: user.avatarUrl || null,
         hasWeixin: !!user.hasWeixin,
         hasPhone: !!user.hasPhone
@@ -167,32 +176,43 @@ export function isLoggedIn() {
 
 async function ensureCallableAuth() {
     const auth = await getAuth();
+    console.log('[cloud-tcb] ensureCallableAuth: auth 实例已获取');
 
     try {
         const localState = auth.hasLoginState?.() || await auth.getLoginState?.();
+        console.log('[cloud-tcb] ensureCallableAuth: 本地登录状态:', localState ? '已登录' : '未登录');
         if (localState) return;
-    } catch {
+    } catch (e) {
+        console.warn('[cloud-tcb] ensureCallableAuth: 检查登录状态异常:', e.message || e);
         // ignore and fallback to anonymous sign-in
     }
 
     let lastError = null;
 
     try {
+        console.log('[cloud-tcb] ensureCallableAuth: 尝试匿名登录 signInAnonymously...');
         const result = await auth.signInAnonymously?.({});
-        if (!result?.error) return;
+        if (!result?.error) {
+            console.log('[cloud-tcb] ensureCallableAuth: 匿名登录成功');
+            return;
+        }
         lastError = result.error;
+        console.warn('[cloud-tcb] ensureCallableAuth: signInAnonymously 返回错误:', lastError);
     } catch (error) {
         lastError = error;
+        console.warn('[cloud-tcb] ensureCallableAuth: signInAnonymously 异常:', error.message || error);
     }
 
     try {
         const provider = auth.anonymousAuthProvider?.();
         if (provider?.signIn) {
             await provider.signIn();
+            console.log('[cloud-tcb] ensureCallableAuth: provider.signIn 匿名登录成功');
             return;
         }
     } catch (error) {
         lastError = error;
+        console.warn('[cloud-tcb] ensureCallableAuth: provider.signIn 异常:', error.message || error);
     }
 
     throw buildError(lastError, '腾讯云匿名登录初始化失败，请检查 WEB 安全域名与匿名登录配置');
@@ -200,11 +220,15 @@ async function ensureCallableAuth() {
 
 export async function callFunction(name, data = {}) {
     const app = await initTCB();
+    console.log(`[cloud-tcb] callFunction 开始调用云函数: ${name}`, JSON.stringify(data).slice(0, 200));
     await ensureCallableAuth();
+    console.log(`[cloud-tcb] ensureCallableAuth 完成，准备发送请求...`);
     try {
         const result = await app.callFunction({ name, data });
+        console.log(`[cloud-tcb] 云函数 ${name} 返回:`, JSON.stringify(result?.result ?? result).slice(0, 500));
         return result?.result ?? result;
     } catch (error) {
+        console.error(`[cloud-tcb] 云函数 ${name} 调用异常:`, error);
         throw buildError(error, '云函数调用失败');
     }
 }
@@ -435,6 +459,181 @@ export async function passwordLogin(email, password) {
         return { token: result.data.token, user };
     } catch (error) {
         throw buildError(error, '密码登录失败');
+    }
+}
+
+
+// ===== 手机号密码登录（走云函数 phonePasswordLogin） =====
+
+/**
+ * 用手机号 + 密码登录（不需要验证码）
+ *
+ * @param {string} phone — 手机号（11位）
+ * @param {string} password — 密码
+ * @returns {Promise<{user: object, token: string}>}
+ */
+export async function phonePasswordLogin(phone, password) {
+    const normalizedPhone = normalizePhone(phone);
+    const normalizedPassword = normalizePassword(password);
+
+    console.log(`[cloud-tcb] phonePasswordLogin 被调用: phone=${normalizedPhone}`);
+
+    try {
+        const result = await callFunction('phonePasswordLogin', {
+            phone: normalizedPhone,
+            password: normalizedPassword
+        });
+
+        if (result.code !== 0) {
+            switch (result.code) {
+                case 400: throw new Error(result.message || '参数错误');
+                case 401: throw new Error(result.message || '手机号或密码错误');
+                case 402: throw new Error(result.message || '该账号尚未设置密码，请使用验证码登录');
+                case 403: throw new Error(result.message || '该账号已被禁用');
+                case 404:
+                    // 未注册 —— 返回特殊标记让前端处理
+                    const err = new Error(result.message || '该账号尚未注册');
+                    err.code = 'NOT_REGISTERED';
+                    err.registered = false;
+                    throw err;
+                default: throw new Error(result.message || '登录失败');
+            }
+        }
+
+        const user = mapCloudUser(result.data);
+        if (!user?.id) throw new Error('返回结果不完整');
+
+        saveAuthSession({ token: result.data.token, user });
+
+        console.log('[cloud-tcb] 手机号密码登录成功:', normalizedPhone);
+        return { token: result.data.token, user };
+    } catch (error) {
+        throw buildError(error, '手机号密码登录失败');
+    }
+}
+
+
+// ===== 手机号验证码注册（走云函数 phoneRegister） =====
+
+/**
+ * 用手机号 + 验证码 + 密码 注册
+ *
+ * @param {string} phone — 手机号（11位）
+ * @param {string} code — 6位验证码
+ * @param {string} password — 要设置的密码
+ * @returns {Promise<{user: object, token: string}>}
+ */
+export async function phoneRegister(phone, code, password) {
+    const normalizedPhone = normalizePhone(phone);
+    const normalizedCode = normalizeCode(code);
+    const normalizedPassword = normalizePassword(password);
+
+    try {
+        const result = await callFunction('phoneRegister', {
+            phone: normalizedPhone,
+            code: normalizedCode,
+            password: normalizedPassword
+        });
+
+        if (result.code !== 0) {
+            switch (result.code) {
+                case 400: throw new Error(result.message || '参数错误');
+                case 401: throw new Error('验证码错误或已过期，请重新发送');
+                case 409: throw new Error(result.message || '该手机号已注册，请直接登录');
+                default: throw new Error(result.message || '注册失败');
+            }
+        }
+
+        const user = mapCloudUser(result.data);
+        if (!user?.id) throw new Error('返回结果不完整');
+
+        saveAuthSession({ token: result.data.token, user });
+
+        console.log('[cloud-tcb] 手机号注册成功:', normalizedPhone);
+        return { token: result.data.token, user };
+    } catch (error) {
+        throw buildError(error, '注册操作失败');
+    }
+}
+
+
+// ===== 手机号重置密码（走云函数 phoneResetPassword） =====
+
+/**
+ * 通过手机号 + 验证码重置密码
+ *
+ * @param {string} phone — 手机号
+ * @param {string} code — 6位验证码
+ * @param {string} newPassword — 新密码
+ * @returns {Promise<{user: object, token: string}>}
+ */
+export async function phoneResetPassword(phone, code, newPassword) {
+    const normalizedPhone = normalizePhone(phone);
+    const normalizedCode = normalizeCode(code);
+    const normalizedPassword = normalizePassword(newPassword);
+
+    try {
+        const result = await callFunction('phoneResetPassword', {
+            phone: normalizedPhone,
+            code: normalizedCode,
+            newPassword: normalizedPassword
+        });
+
+        if (result.code !== 0) {
+            switch (result.code) {
+                case 400: throw new Error(result.message || '参数错误');
+                case 401: throw new Error('验证码错误或已过期');
+                case 404: throw new Error(result.message || '该手机号未注册');
+                default: throw new Error(result.message || '重置失败');
+            }
+        }
+
+        const user = mapCloudUser(result.data);
+        if (!user?.id) throw new Error('返回结果不完整');
+
+        saveAuthSession({ token: result.data.token, user });
+
+        console.log('[cloud-tcb] 手机号密码重置成功:', normalizedPhone);
+        return { token: result.data.token, user };
+    } catch (error) {
+        throw buildError(error, '密码重置失败');
+    }
+}
+
+
+// ===== 更新昵称（走云函数 updateNickname） =====
+
+/**
+ * 更新用户昵称
+ */
+export async function updateNickname(userId, nickname) {
+    if (!userId || !nickname) throw new Error('参数不完整');
+    if (typeof nickname !== 'string' || nickname.length > 50) {
+        throw new Error('昵称长度不能超过50个字符');
+    }
+
+    try {
+        const result = await callFunction('updateNickname', { userId, nickname });
+
+        if (result.code !== 0) {
+            switch (result.code) {
+                case 400: throw new Error(result.message || '昵称格式不正确');
+                case 401: throw new Error('请重新登录后再试');
+                default: throw new Error(result.message || '更新失败');
+            }
+        }
+
+        // 更新本地缓存的用户数据
+        const storedUser = getStoredUser();
+        if (storedUser) {
+            storedUser.nickname = nickname;
+            saveAuthSession({ user: storedUser });
+        }
+
+        console.log('[cloud-tcb] 昵称已更新:', nickname);
+        return result.data;
+    } catch (error) {
+        throw buildError(error, '昵称更新失败');
     }
 }
 

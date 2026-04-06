@@ -26,7 +26,11 @@ import {
     signOut as signOutTCB,
     getTCBEnvId,
     sendSmsCode as sendTCBSmsCode,
-    phoneLogin as tcbPhoneLogin
+    phoneLogin as tcbPhoneLogin,
+    phonePasswordLogin as tcbPhonePasswordLogin,
+    phoneRegister as tcbPhoneRegister,
+    phoneResetPassword as tcbPhoneResetPassword,
+    updateNickname as tcbUpdateNickname
 } from './cloud-tcb.js';
 
 let initialized = false;
@@ -132,6 +136,54 @@ export async function smsLogin(phone, code) {
     const result = await tcbPhoneLogin(phone, code);
     emitAuthChange('SIGNED_IN', { user: result?.user || null, token: result?.token || null });
     return result;
+}
+
+/**
+ * 手机号密码登录
+ * @param {string} phone — 手机号
+ * @param {string} password — 密码
+ */
+export async function phonePasswordLogin(phone, password) {
+    if (!isAuthEnabled()) throw new Error('当前环境未启用腾讯云登录');
+    const result = await tcbPhonePasswordLogin(phone, password);
+    emitAuthChange('SIGNED_IN', { user: result?.user || null, token: result?.token || null });
+    return result;
+}
+
+/**
+ * 手机号验证码注册（带密码设置）
+ * @param {string} phone — 手机号
+ * @param {string} code — 验证码
+ * @param {string} password — 要设置的密码
+ */
+export async function phoneRegisterFn(phone, code, password) {
+    if (!isAuthEnabled()) throw new Error('当前环境未启用腾讯云登录');
+    const result = await tcbPhoneRegister(phone, code, password);
+    emitAuthChange('SIGNED_IN', { user: result?.user || null, token: result?.token || null });
+    return result;
+}
+
+/**
+ * 手机号重置密码
+ * @param {string} phone — 手机号
+ * @param {string} code — 验证码
+ * @param {string} newPassword — 新密码
+ */
+export async function phoneResetPasswordFn(phone, code, newPassword) {
+    if (!isAuthEnabled()) throw new Error('当前环境未启用腾讯云登录');
+    const result = await tcbPhoneResetPassword(phone, code, newPassword);
+    emitAuthChange('SIGNED_IN', { user: result?.user || null, token: result?.token || null });
+    return result;
+}
+
+/**
+ * 更新用户昵称
+ * @param {string} userId — 用户ID
+ * @param {string} nickname — 新昵称
+ */
+export async function updateUserNickname(userId, nickname) {
+    if (!isAuthEnabled()) throw new Error('当前环境未启用腾讯云登录');
+    return await tcbUpdateNickname(userId, nickname);
 }
 
 /**

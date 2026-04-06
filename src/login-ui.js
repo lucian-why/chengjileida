@@ -1,34 +1,37 @@
 ﻿/**
- * login-ui.js — 登录/注册 UI（合并模式）
+ * login-ui.js — 登录/注册 UI（密码优先模式）
  *
- * 职责：渲染登录弹窗、处理登录交互、显示登录状态
+ * 职责：渲染登录弹窗、处理登录交互、显示登录状态、昵称编辑
  *
  * 设计方案（2026-04-06 重构）：
- *   合并模式 —— 不区分"注册"和"登录"两个入口
+ *   密码优先 —— 默认手机号+密码登录，验证码作为备选
  *   - 统一输入框：自动识别用户输入的是邮箱还是手机号
- *     · 含 @ → 邮箱验证码 / 密码登录
- *     · 11位手机号 → 短信验证码登录（家长用）
- *   - 默认展示：账号 + 验证码（新用户自动注册，老用户直接登录）
- *   - 备选方式："或使用密码登录 ▸" 切换到密码输入框
- *   - 密码为可选：验证码模式下可填可不填，密码模式必填
+ *     · 含 @ → 邮箱密码登录 / 邮箱验证码登录
+ *     · 11位手机号 → 手机号密码登录（默认）/ 验证码登录（备选）
+ *   - 新用户自动注册：密码登录失败(404) → 自动切换到注册面板
+ *   - 注册流程：验证码 + 设置密码
+ *   - 找回密码：独立面板，验证码+新密码
+ *   - 昵称编辑：点击昵称即可修改（inline 弹窗）
  *
  * 依赖：
  *   - auth.js：sendEmailCode / sendSmsCode / emailCodeLogin / smsLogin / passwordLogin
- *
- * 对外暴露：
- *   - showLoginPage(message) / hideLoginPage()
- *   - renderAuthStatus(user) / clearAuthStatus()
- *   - setLoginSuccessHandler(handler) / setLogoutHandler(handler)
+ *            phonePasswordLogin / phoneRegisterFn / phoneResetPasswordFn / updateUserNickname
  */
 
-import { sendEmailCode, sendSmsCode, emailCodeLogin, smsLogin, passwordLogin } from './auth.js';
+import {
+    sendEmailCode, sendSmsCode, emailCodeLogin, smsLogin, passwordLogin,
+    phonePasswordLogin, phoneRegisterFn, phoneResetPasswordFn, updateUserNickname
+} from './auth.js';
 
 let onLoginSuccess = null;
 let onLogout = null;
 let uiBound = false;
 
 /** 当前登录模式：'code'(验证码) | 'password'(密码) */
-let currentMode = 'code';
+let currentMode = 'password';
+
+/** 登录子状态：'login'(默认) | 'register'(注册) | 'resetpwd'(找回密码) | 'sms_login'(验证码登录) */
+let loginSubMode = 'login';
 
 /**
  * 智能识别输入类型：email | phone | unknown
@@ -66,46 +69,75 @@ function ensureLoginUi() {
                 <p class="login-subtitle">登录后可启用云端备份与多端同步</p>
 
                 <div class="login-form">
-                    <!-- 统一账号输入框（自动识别邮箱/手机号） -->
+                    <!-- 统一账号输入框 -->
                     <label class="login-label" id="loginAccountLabel" for="loginAccountInput">邮箱 / 手机号</label>
                     <input id="loginAccountInput" class="login-input" type="text"
                            placeholder="请输入邮箱或手机号" maxlength="100" autocomplete="username" />
 
-                    <!-- 验证码区域（默认展示） -->
-                    <div id="codeModeSection">
+                    <!-- 密码区域（默认展示） -->
+                    <div id="passwordModeSection">
+                        <label class="login-label" for="loginPwdInput">密码</label>
+                        <input id="loginPwdInput" class="login-input" type="password"
+                               placeholder="请输入登录密码" maxlength="64" autocomplete="current-password" />
+                    </div>
+
+                    <!-- 验证码区域（注册时展示 / 验证码登录模式展示） -->
+                    <div id="codeModeSection" style="display:none;">
                         <label class="login-label" for="loginCodeInput">验证码</label>
                         <div class="login-inline-row">
                             <input id="loginCodeInput" class="login-input" type="text"
                                    inputmode="numeric" placeholder="请输入 6 位验证码" maxlength="6" />
                             <button id="sendCodeBtn" class="login-secondary-btn" type="button">发送验证码</button>
                         </div>
-                        <!-- 可选密码提示（仅邮箱模式显示） -->
-                        <div id="optionalPasswordHint" style="margin-top:8px;">
-                            <label class="login-label" for="loginOptionalPwdInput">
-                                设置密码 <span style="font-weight:400;font-size:0.8em;color:#9ca3af;">(可选，设了以后可用密码登录)</span>
+
+                        <!-- 确认密码（仅注册模式显示） -->
+                        <div id="registerConfirmPwdSection" style="display:none; margin-top:8px;">
+                            <label class="login-label" for="loginConfirmPwdInput">
+                                确认密码 <span style="font-weight:400;font-size:0.8em;color:#9ca3af;">(必填)</span>
                             </label>
-                            <input id="loginOptionalPwdInput" class="login-input" type="password"
-                                   placeholder="留空则仅使用验证码登录" maxlength="64" autocomplete="new-password" />
+                            <input id="loginConfirmPwdInput" class="login-input" type="password"
+                                   placeholder="再次输入密码" maxlength="64" autocomplete="new-password" />
                         </div>
                     </div>
 
-                    <!-- 密码区域（默认隐藏） -->
-                    <div id="passwordModeSection" style="display:none;">
-                        <label class="login-label" for="loginPwdInput">密码</label>
-                        <input id="loginPwdInput" class="login-input" type="password"
-                               placeholder="请输入登录密码" maxlength="64" autocomplete="current-password" />
-                    </div>
-
-                    <!-- 模式切换按钮 -->
-                    <button type="button" class="login-mode-switch" id="loginModeSwitch">
-                        或使用密码登录 <span class="switch-arrow">▸</span>
-                    </button>
+                    <!-- 模式切换提示 -->
+                    <div id="modeSwitchHint" style="display:none; margin-top:8px; font-size:0.85rem; color:#e8a87c; text-align:center;"></div>
 
                     <button id="loginSubmitBtn" class="login-primary-btn" type="button">
-                        <span id="submitBtnText">验证码登录</span>
+                        <span id="submitBtnText">登录 / 注册</span>
                     </button>
 
-                    <button id="loginCancelBtn" class="login-ghost-btn" type="button">暂不登录，返回页面</button>
+                    <!-- 底部辅助操作 -->
+                    <div class="login-footer-links">
+                        <a href="javascript:void(0)" id="smsLoginLink" class="login-link">📨 验证码登录</a>
+                        <a href="javascript:void(0)" id="registerLink" class="login-link">📝 注册账号</a>
+                        <a href="javascript:void(0)" id="forgotPwdLink" class="login-link">忘记密码？</a>
+                        <a href="javascript:void(0)" id="backToLoginFromRegister" class="login-link" style="display:none;">← 返回登录</a>
+                    </div>
+
+                    <!-- 找回密码面板（默认隐藏） -->
+                    <div id="resetPwdPanel" style="display:none;">
+                        <div style="border-top:1px solid #e8e4de; padding-top:16px; margin-top:12px;">
+                            <div style="font-weight:600; font-size:0.95rem; margin-bottom:12px;">找回密码</div>
+                            <label class="login-label" for="resetPwdPhone">手机号</label>
+                            <input id="resetPwdPhone" class="login-input" type="tel" placeholder="请输入注册手机号" maxlength="11" />
+
+                            <label class="login-label" for="resetPwdCode" style="margin-top:8px;">验证码</label>
+                            <div class="login-inline-row">
+                                <input id="resetPwdCode" class="login-input" type="text" inputmode="numeric" placeholder="6位验证码" maxlength="6" />
+                                <button id="resetSendCodeBtn" class="login-secondary-btn" type="button">发送验证码</button>
+                            </div>
+
+                            <label class="login-label" for="resetNewPwd" style="margin-top:8px;">新密码</label>
+                            <input id="resetNewPwd" class="login-input" type="password" placeholder="至少6位" maxlength="64" />
+
+                            <label class="login-label" for="resetConfirmPwd" style="margin-top:8px;">确认新密码</label>
+                            <input id="resetConfirmPwd" class="login-input" type="password" placeholder="再次输入" maxlength="64" />
+
+                            <button id="resetSubmitBtn" class="login-primary-btn" type="button" style="margin-top:12px;">确认重置</button>
+                            <a href="javascript:void(0)" id="backToLoginLink" class="login-link" style="display:inline-block; margin-top:8px;">← 返回登录</a>
+                        </div>
+                    </div>
 
                     <div id="loginStatus" class="login-status"></div>
                 </div>
@@ -145,41 +177,92 @@ function setStatus(message = '', type = '') {
 }
 
 /**
- * 切换验证码/密码模式
+ * 切换登录模式（支持四种子状态）
  */
-function switchLoginMode(mode) {
-    currentMode = mode;
+function switchLoginMode(mode, subMode) {
+    currentMode = mode; // 'password' | 'code'
+    loginSubMode = subMode || 'login';
 
-    const codeSection = document.getElementById('codeModeSection');
     const pwdSection = document.getElementById('passwordModeSection');
-    const switchBtn = document.getElementById('loginModeSwitch');
+    const codeSection = document.getElementById('codeModeSection');
+    const regConfirmPwd = document.getElementById('registerConfirmPwdSection');
+    const switchHint = document.getElementById('modeSwitchHint');
     const submitText = document.getElementById('submitBtnText');
+    const smsLink = document.getElementById('smsLoginLink');
+    const forgotLink = document.getElementById('forgotPwdLink');
+    const resetPanel = document.getElementById('resetPwdPanel');
 
-    if (mode === 'code') {
-        codeSection.style.display = '';
-        pwdSection.style.display = 'none';
-        switchBtn.innerHTML = '或使用密码登录 <span class="switch-arrow">▸</span>';
-        submitText.textContent = '验证码登录';
-    } else {
-        codeSection.style.display = 'none';
-        pwdSection.style.display = '';
-        switchBtn.innerHTML = '返回验证码登录 <span class="switch-arrow">◂</span>';
-        submitText.textContent = '密码登录';
+    // 先隐藏找回密码面板
+    if (resetPanel) resetPanel.style.display = 'none';
+
+    if (subMode === 'resetpwd') {
+        // 找回密码模式
+        if (resetPanel) resetPanel.style.display = '';
+        submitText.textContent = '';
+        setStatus('');
+        return;
     }
 
-    // 清空状态
+    // 显示主表单区域（如果被找回密码面板隐藏了）
+    const mainForm = document.querySelector('.login-form > div[id]');
+    if (mainForm && mainForm.closest('#resetPwdPanel') === null) {
+        mainForm.parentElement.style.display = '';
+    }
+
+    if (subMode === 'register') {
+        // 注册模式：显示验证码 + 确认密码
+        pwdSection.style.display = 'none';
+        codeSection.style.display = '';
+        regConfirmPwd.style.display = '';
+        switchHint.style.display = 'none';
+        submitText.textContent = '注 册';
+        smsLink.style.display = 'none';
+        forgotLink.style.display = 'none';
+        if (registerLink) registerLink.style.display = 'none';
+        // 显示返回登录链接
+        const backRegLink = document.getElementById('backToLoginFromRegister');
+        if (backRegLink) backRegLink.style.display = '';
+    } else if (mode === 'code' && subMode === 'sms_login') {
+        // 验证码登录模式
+        pwdSection.style.display = 'none';
+        codeSection.style.display = '';
+        regConfirmPwd.style.display = 'none';
+        switchHint.style.display = 'none';
+        submitText.textContent = '验证码登录';
+        smsLink.textContent = '🔑 密码登录';
+        smsLink.style.display = '';
+        forgotLink.style.display = 'none';
+        if (registerLink) registerLink.style.display = 'none';
+        // 验证码登录也显示返回
+        const backSmsLink = document.getElementById('backToLoginFromRegister');
+        if (backSmsLink) backSmsLink.style.display = '';
+    } else {
+        // 默认密码登录模式
+        pwdSection.style.display = '';
+        codeSection.style.display = 'none';
+        regConfirmPwd.style.display = 'none';
+        switchHint.style.display = 'none';
+        submitText.textContent = '登录 / 注册';
+        smsLink.textContent = '📨 验证码登录';
+        smsLink.style.display = '';
+        forgotLink.style.display = ''; // 手机号模式显示忘记密码
+        if (registerLink) registerLink.style.display = '';
+        // 隐藏注册模式的返回链接
+        const backRegLink2 = document.getElementById('backToLoginFromRegister');
+        if (backRegLink2) backRegLink2.style.display = 'none';
+    }
+
     setStatus('');
 }
 
 
 // ===== 事件处理 =====
 
-async function handleSendCode() {
+async function handleSendCode(targetBtn) {
+    const btn = targetBtn || document.getElementById('sendCodeBtn');
     const account = document.getElementById('loginAccountInput')?.value || '';
-    const btn = document.getElementById('sendCodeBtn');
     const inputType = detectInputType(account);
 
-    // 输入校验
     if (inputType === 'unknown') {
         setStatus('请输入正确的邮箱地址或手机号', 'error');
         return;
@@ -223,48 +306,167 @@ function startCountdown(btn) {
 }
 
 async function handleLogin() {
-    const account = document.getElementById('loginAccountInput')?.value || '';
+    const account = (document.getElementById('loginAccountInput')?.value || '').trim();
     const inputType = detectInputType(account);
 
-    // 输入校验
     if (inputType === 'unknown') {
         setStatus('请输入正确的邮箱地址或手机号', 'error');
         return;
     }
 
-    // 手机号不支持密码模式（目前）
-    if (currentMode === 'password' && inputType === 'phone') {
-        setStatus('手机号暂仅支持验证码登录，请切换到验证码模式', 'error');
+    try {
+        if (loginSubMode === 'register') {
+            // ---- 注册模式：验证码 + 密码 ----
+            await handleRegister(account, inputType);
+        } else if (currentMode === 'code' || loginSubMode === 'sms_login') {
+            // ---- 验证码登录模式 ----
+            await handleCodeLogin(account, inputType);
+        } else {
+            // ---- 默认密码登录模式 ----
+            await handlePasswordLogin(account, inputType);
+        }
+    } catch (error) {
+        // 处理 NOT_REGISTERED 特殊错误 → 自动切到注册模式
+        if (error.code === 'NOT_REGISTERED' || error.registered === false) {
+            switchLoginMode('code', 'register');
+            const codeInput = document.getElementById('loginCodeInput');
+            if (codeInput) codeInput.focus();
+            // 自动发送验证码
+            try {
+                setStatus('正在发送验证码…', 'pending');
+                if (inputType === 'phone') {
+                    await sendSmsCode(account);
+                    setStatus('✅ 验证码已发送，请查收短信后输入密码完成注册', 'success');
+                } else {
+                    await sendEmailCode(account);
+                    setStatus('✅ 验证码已发送，请查收邮箱后输入密码完成注册', 'success');
+                }
+                startCountdown(document.getElementById('sendCodeBtn'));
+            } catch (sendErr) {
+                setStatus(sendErr.message || '验证码发送失败，请手动点击发送', 'error');
+            }
+            return;
+        }
+
+        // 处理 402（账号存在但未设置密码）→ 引导设密码
+        if (error.message && error.message.includes('尚未设置密码')) {
+            setStatus('该账号尚未设置密码，可通过「忘记密码」设置新密码', 'info');
+            // 显示忘记密码链接
+            const forgotLink = document.getElementById('forgotPwdLink');
+            if (forgotLink) forgotLink.style.display = '';
+            return;
+        }
+        setStatus(error.message || '登录失败，请稍后重试。', 'error');
+    }
+}
+
+async function handlePasswordLogin(account, inputType) {
+    const pwd = (document.getElementById('loginPwdInput')?.value || '').trim();
+
+    if (!pwd) {
+        setStatus('请输入密码', 'error');
         return;
     }
 
-    try {
+    if (inputType === 'phone') {
+        // 手机号密码登录（新功能）
         setStatus('正在登录…', 'pending');
+        const result = await phonePasswordLogin(account, pwd);
+        setStatus('✅ 登录成功，正在进入…', 'success');
+        if (onLoginSuccess) await onLoginSuccess(result?.user || null);
+    } else {
+        // 邮箱密码登录（原有功能）
+        setStatus('正在登录…', 'pending');
+        const result = await passwordLogin(account, pwd);
+        setStatus('✅ 登录成功，正在进入…', 'success');
+        if (onLoginSuccess) await onLoginSuccess(result?.user || null);
+    }
+}
 
-        let result;
-        if (currentMode === 'code') {
-            // 验证码模式 — 自动识别邮箱/手机号
-            const code = (document.getElementById('loginCodeInput')?.value || '').trim();
+async function handleCodeLogin(account, inputType) {
+    const code = (document.getElementById('loginCodeInput')?.value || '').trim();
 
-            if (inputType === 'email') {
-                const optionalPwd = (document.getElementById('loginOptionalPwdInput')?.value || '').trim();
-                result = await emailCodeLogin(account, code, optionalPwd || undefined);
-            } else {
-                result = await smsLogin(account, code);
-            }
-        } else {
-            // 密码模式（仅邮箱支持）
-            const pwd = (document.getElementById('loginPwdInput')?.value || '').trim();
-            result = await passwordLogin(account, pwd);
-        }
+    if (!code || !/^\d{6}$/.test(code)) {
+        setStatus('请输入6位验证码', 'error');
+        return;
+    }
 
-        setStatus('✅ 登录成功，正在进入云端同步…', 'success');
+    setStatus('正在登录…', 'pending');
+    let result;
 
-        if (onLoginSuccess) {
-            await onLoginSuccess(result?.user || null);
-        }
+    if (inputType === 'phone') {
+        result = await smsLogin(account, code);
+    } else {
+        result = await emailCodeLogin(account, code);
+    }
+
+    setStatus('✅ 登录成功，正在进入…', 'success');
+    if (onLoginSuccess) await onLoginSuccess(result?.user || null);
+}
+
+async function handleRegister(account, inputType) {
+    const code = (document.getElementById('loginCodeInput')?.value || '').trim();
+    // 注册时密码从 passwordModeSection 取（因为注册模式下密码区被隐藏了但值还在）
+    const pwd = (document.getElementById('loginPwdInput')?.value || '').trim();
+    const confirmPwd = (document.getElementById('loginConfirmPwdInput')?.value || '').trim();
+
+    if (!code || !/^\d{6}$/.test(code)) {
+        setStatus('请输入6位验证码', 'error');
+        return;
+    }
+    if (!pwd || pwd.length < 6) {
+        setStatus('请设置至少6位的密码', 'error');
+        return;
+    }
+    if (pwd !== confirmPwd) {
+        setStatus('两次输入的密码不一致', 'error');
+        return;
+    }
+
+    setStatus('正在注册…', 'pending');
+
+    if (inputType === 'phone') {
+        const result = await phoneRegisterFn(account, code, pwd);
+        setStatus('✅ 注册成功，正在进入…', 'success');
+        if (onLoginSuccess) await onLoginSuccess(result?.user || null);
+    } else {
+        // 邮箱注册走原有的 emailCodeLogin（带密码参数）
+        const result = await emailCodeLogin(account, code, pwd);
+        setStatus('✅ 注册成功，正在进入…', 'success');
+        if (onLoginSuccess) await onLoginSuccess(result?.user || null);
+    }
+}
+
+/** 找回密码处理 */
+async function handleResetPassword() {
+    const phone = (document.getElementById('resetPwdPhone')?.value || '').trim();
+    const code = (document.getElementById('resetPwdCode')?.value || '').trim();
+    const newPwd = (document.getElementById('resetNewPwd')?.value || '').trim();
+    const confirmPwd = (document.getElementById('resetConfirmPwd')?.value || '').trim();
+
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+        setStatus('请输入正确的手机号', 'error'); return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+        setStatus('请输入6位验证码', 'error'); return;
+    }
+    if (newPwd.length < 6) {
+        setStatus('密码至少需要6个字符', 'error'); return;
+    }
+    if (newPwd !== confirmPwd) {
+        setStatus('两次输入的密码不一致', 'error'); return;
+    }
+
+    try {
+        setStatus('正在重置…', 'pending');
+        const result = await phoneResetPasswordFn(phone, code, newPwd);
+        setStatus('✅ 密码重置成功', 'success');
+        setTimeout(() => {
+            switchLoginMode('password', 'login');
+            showTransientToast('密码已重置，请使用新密码登录');
+        }, 1500);
     } catch (error) {
-        setStatus(error.message || '登录失败，请稍后重试。', 'error');
+        setStatus(error.message || '重置失败', 'error');
     }
 }
 
@@ -277,25 +479,31 @@ function bindUiEvents() {
     const accountLabel = document.getElementById('loginAccountLabel');
     const codeInput = document.getElementById('loginCodeInput');
     const pwdInput = document.getElementById('loginPwdInput');
-    const optionalPwdHint = document.getElementById('optionalPasswordHint');
     const logoutBtn = document.getElementById('authLogoutBtn');
     const closeBtn = document.getElementById('loginCloseBtn');
-    const cancelBtn = document.getElementById('loginCancelBtn');
-    const modeSwitchBtn = document.getElementById('loginModeSwitch');
     const dismiss = () => hideLoginPage();
 
-    sendBtn?.addEventListener('click', handleSendCode);
+    // 底部链接
+    const smsLink = document.getElementById('smsLoginLink');
+    const forgotLink = document.getElementById('forgotPwdLink');
+    const registerLink = document.getElementById('registerLink');
+
+    // 找回密码面板元素
+    const resetSendCodeBtn = document.getElementById('resetSendCodeBtn');
+    const resetSubmitBtn = document.getElementById('resetSubmitBtn');
+    const backToLoginLink = document.getElementById('backToLoginLink');
+
+    sendBtn?.addEventListener('click', () => handleSendCode(sendBtn));
     submitBtn?.addEventListener('click', handleLogin);
 
-    // 输入时实时更新标签文字 + 控制可选密码显示（仅邮箱模式）
+    // 输入时实时更新标签文字
     accountInput?.addEventListener('input', () => {
         const value = accountInput.value;
-        const type = detectInputType(value);
         accountLabel.textContent = getAccountLabel(value);
-
-        // 可选密码仅邮箱模式有意义，手机号模式隐藏
-        if (optionalPwdHint) {
-            optionalPwdHint.style.display = (type === 'phone') ? 'none' : '';
+        // 手机号模式下显示忘记密码链接（仅在密码登录模式）
+        const type = detectInputType(value);
+        if (forgotLink) {
+            forgotLink.style.display = (type === 'phone' && currentMode === 'password' && loginSubMode === 'login') ? '' : 'none';
         }
     });
 
@@ -303,7 +511,7 @@ function bindUiEvents() {
     accountInput?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            if (currentMode === 'code') handleSendCode();
+            if (currentMode === 'code' || loginSubMode !== 'login') handleSendCode(sendBtn);
             else pwdInput?.focus();
         }
     });
@@ -314,14 +522,75 @@ function bindUiEvents() {
         if (event.key === 'Enter') { event.preventDefault(); handleLogin(); }
     });
 
-    // 关闭/取消
+    // 关闭
     closeBtn?.addEventListener('click', dismiss);
-    cancelBtn?.addEventListener('click', dismiss);
 
-    // 模式切换
-    modeSwitchBtn?.addEventListener('click', () => {
-        switchLoginMode(currentMode === 'code' ? 'password' : 'code');
+    // 📨 验证码登录 / 🔑 密码登录 切换
+    smsLink?.addEventListener('click', () => {
+        if (loginSubMode === 'sms_login') {
+            // 当前在验证码模式 → 切回密码模式
+            switchLoginMode('password', 'login');
+        } else {
+            // 当前在密码模式 → 切到验证码登录
+            switchLoginMode('code', 'sms_login');
+        }
     });
+
+    // 忘记密码？→ 切换到找回密码面板
+    forgotLink?.addEventListener('click', () => {
+        switchLoginMode('password', 'resetpwd');
+    });
+
+    // 📝 注册账号 → 切换到注册模式（保留已输入的账号，自动发验证码）
+    registerLink?.addEventListener('click', async () => {
+        const accountInput = document.getElementById('loginAccountInput');
+        const account = accountInput?.value || '';
+        const type = detectInputType(account);
+
+        // 先切到注册模式
+        switchLoginMode('code', 'register');
+
+        if (type === 'unknown') {
+            // 没有有效账号，聚焦到输入框让用户填
+            setStatus('请输入手机号或邮箱以开始注册', 'info');
+            accountInput?.focus();
+            return;
+        }
+
+        // 有账号，直接发验证码
+        setStatus('正在发送验证码…', 'pending');
+        try {
+            if (type === 'phone') await sendSmsCode(account);
+            else await sendEmailCode(account);
+            setStatus(`✅ 验证码已发送到${type === 'phone' ? '手机' : '邮箱'}，请输入验证码和密码完成注册`, 'success');
+            startCountdown(document.getElementById('sendCodeBtn'));
+        } catch (err) {
+            setStatus(err.message || '发送失败，请手动点击发送验证码', 'error');
+        }
+    });
+
+    // ← 返回登录（找回密码面板）
+    backToLoginLink?.addEventListener('click', () => {
+        switchLoginMode('password', 'login');
+    });
+
+    // ← 返回登录（注册模式）
+    const backToLoginFromReg = document.getElementById('backToLoginFromRegister');
+    backToLoginFromReg?.addEventListener('click', () => {
+        switchLoginMode('password', 'login');
+    });
+
+    // 找回密码面板：发送验证码
+    resetSendCodeBtn?.addEventListener('click', () => {
+        const phone = document.getElementById('resetPwdPhone')?.value || '';
+        if (!/^1[3-9]\d{9}$/.test(phone.trim())) {
+            setStatus('请输入正确的手机号', 'error'); return;
+        }
+        handleSendCode(resetSendCodeBtn);
+    });
+
+    // 找回密码面板：提交重置
+    resetSubmitBtn?.addEventListener('click', handleResetPassword);
 
     // ESC 关闭
     const overlay = document.getElementById('loginPage');
@@ -353,8 +622,8 @@ export function showLoginPage(message = '') {
     overlay.classList.remove('hidden');
     document.body.classList.add('auth-locked');
 
-    // 每次打开重置为验证码模式
-    switchLoginMode('code');
+    // 每次打开默认使用密码模式（而非验证码）
+    switchLoginMode('password', 'login');
 
     if (message) {
         setStatus(message, 'info');
@@ -370,7 +639,7 @@ export function hideLoginPage() {
     setStatus('');
 }
 
-/** 显示短暂自动消失的提示（不依赖外部 UI 框架） */
+/** 显示短暂自动消失的提示 */
 function showTransientToast(text, duration = 2500) {
     let toast = document.getElementById('loginTransientToast');
     if (!toast) {
@@ -389,12 +658,88 @@ function showTransientToast(text, duration = 2500) {
     showTransientToast._timer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
 }
 
+/** 渲染登录后的用户状态栏（含昵称点击编辑） */
 export function renderAuthStatus(user) {
     ensureLoginUi();
     const authBar = document.getElementById('authStatusBar');
     const value = document.getElementById('authStatusValue');
-    if (value) value.textContent = user?.email || '已登录';
+
+    const displayText = user?.nickname || user?.email || user?.phone || '已登录';
+    if (value) {
+        value.textContent = displayText;
+        value.style.cursor = 'pointer';
+        value.title = '点击修改昵称';
+        value.onclick = () => openNicknameEditor(user, displayText);
+    }
     authBar?.classList.remove('hidden');
+}
+
+/** 打开昵称编辑弹窗 */
+function openNicknameEditor(user, currentNickname) {
+    const editor = document.createElement('div');
+    editor.id = 'nicknameEditor';
+    editor.innerHTML = `
+        <div class="nickname-editor-overlay" id="nicknameOverlay"
+             style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;
+                    background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+            <div class="nickname-editor-card"
+                 style="background:#fff;border-radius:12px;padding:20px;width:320px;max-width:90vw;
+                        box-shadow:0 8px 32px rgba(0,0,0,0.15);position:relative;z-index:99999;">
+                <div style="font-weight:600;font-size:1rem;margin-bottom:12px;">✏️ 修改显示昵称</div>
+                <input id="nicknameInputField" type="text" maxlength="20"
+                       style="width:100%;padding:10px 12px;border:1px solid #e8e4de;border-radius:8px;
+                              font-size:14px;box-sizing:border-box;outline:none;"
+                       placeholder="输入新昵称" value="${currentNickname || ''}" />
+                <div style="display:flex;gap:8px;margin-top:16px;">
+                    <button id="nicknameCancelBtn" type="button"
+                         style="flex:1;padding:8px;border:1px solid #e8e4de;border-radius:8px;
+                                background:#fff;cursor:pointer;font-size:14px;">取消</button>
+                    <button id="nicknameSaveBtn" type="button"
+                         style="flex:1;padding:8px;border:none;border-radius:8px;
+                                background:#4f46e5;color:#fff;cursor:pointer;font-size:14px;">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(editor);
+
+    const overlay = document.getElementById('nicknameOverlay');
+    const input = document.getElementById('nicknameInputField');
+    const cancelBtn = document.getElementById('nicknameCancelBtn');
+    const saveBtn = document.getElementById('nicknameSaveBtn');
+
+    const close = () => { editor.remove(); };
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+    cancelBtn.onclick = close;
+    input?.focus();
+
+    saveBtn.onclick = async () => {
+        const newName = (input?.value || '').trim();
+        if (!newName) {
+            input.style.borderColor = '#ef4444';
+            return;
+        }
+
+        try {
+            saveBtn.disabled = true;
+            saveBtn.textContent = '保存中…';
+            await updateUserNickname(user.id, newName);
+            close();
+            if (user) user.nickname = newName;
+            renderAuthStatus(user);
+            showTransientToast('昵称已更新 ✓');
+        } catch (err) {
+            showTransientToast(err.message || '保存失败');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '保存';
+        }
+    };
+
+    const escHandler = (e) => {
+        if (e.key === 'Escape') { close(); document.removeEventListener('keydown', escHandler); }
+    };
+    document.addEventListener('keydown', escHandler);
 }
 
 export function clearAuthStatus() {

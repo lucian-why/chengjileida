@@ -1,0 +1,1 @@
+{"name": "phonePasswordLogin", "version": "1.0.0", "description": "手机号+密码登录", "main": "index.js", "dependencies": {"@cloudbase/node-sdk": "^2.0.0", "bcryptjs": "^2.4.3"}}

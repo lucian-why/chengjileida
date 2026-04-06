@@ -86,7 +86,7 @@ exports.main = async (event, context) => {
       .doc(typeof user._id === 'string' ? user._id : user._id)
       .update({
         token,
-        tokenExpireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7天有效期
+        tokenExpireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30天有效期
       });
 
     return {
@@ -98,7 +98,7 @@ exports.main = async (event, context) => {
           id: user._id,
           phone
         },
-        expiresIn: 604800 // 7天（秒）
+        expiresIn: 2592000 // 30天（秒）
       }
     };
 
