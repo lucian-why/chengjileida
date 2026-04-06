@@ -2201,7 +2201,7 @@
                         </div>
                         <div class="exam-subjects">
                             ${subjects.map((s, si) => {
-                                const rankTag = s.classRank ? ` 🏅${s.classRank}` : '';
+                                const rankTag = s.classRank ? ` 班${s.classRank}` : '';
                                 return `
                                 <div class="subject-item" onclick="event.stopPropagation(); selectExam(${exam.id})">
                                     <span class="subject-name">📄 ${s.name}</span>

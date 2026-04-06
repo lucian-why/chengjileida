@@ -5,13 +5,15 @@
  *
  * 设计方案（2026-04-06 重构）：
  *   合并模式 —— 不区分"注册"和"登录"两个入口
- *   - 默认展示：邮箱 + 验证码（新用户自动注册，老用户直接登录）
+ *   - 统一输入框：自动识别用户输入的是邮箱还是手机号
+ *     · 含 @ → 邮箱验证码 / 密码登录
+ *     · 11位手机号 → 短信验证码登录（家长用）
+ *   - 默认展示：账号 + 验证码（新用户自动注册，老用户直接登录）
  *   - 备选方式："或使用密码登录 ▸" 切换到密码输入框
  *   - 密码为可选：验证码模式下可填可不填，密码模式必填
- *   - 暂不做昵称设置（后续在个人中心实现）
  *
  * 依赖：
- *   - auth.js：sendEmailCode / emailCodeLogin / passwordLogin
+ *   - auth.js：sendEmailCode / sendSmsCode / emailCodeLogin / smsLogin / passwordLogin
  *
  * 对外暴露：
  *   - showLoginPage(message) / hideLoginPage()
@@ -19,7 +21,7 @@
  *   - setLoginSuccessHandler(handler) / setLogoutHandler(handler)
  */
 
-import { sendEmailCode, emailCodeLogin, passwordLogin } from './auth.js';
+import { sendEmailCode, sendSmsCode, emailCodeLogin, smsLogin, passwordLogin } from './auth.js';
 
 let onLoginSuccess = null;
 let onLogout = null;
@@ -27,6 +29,26 @@ let uiBound = false;
 
 /** 当前登录模式：'code'(验证码) | 'password'(密码) */
 let currentMode = 'code';
+
+/**
+ * 智能识别输入类型：email | phone | unknown
+ */
+function detectInputType(value) {
+    const trimmed = (value || '').trim();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return 'email';
+    if (/^1[3-9]\d{9}$/.test(trimmed)) return 'phone';
+    return 'unknown';
+}
+
+/**
+ * 根据当前输入返回友好的标签文字
+ */
+function getAccountLabel(value) {
+    const type = detectInputType(value);
+    if (type === 'email') return '邮箱';
+    if (type === 'phone') return '手机号';
+    return '邮箱 / 手机号';
+}
 
 
 // ===== DOM 构建 =====
@@ -44,10 +66,10 @@ function ensureLoginUi() {
                 <p class="login-subtitle">登录后可启用云端备份与多端同步</p>
 
                 <div class="login-form">
-                    <!-- 邮箱 -->
-                    <label class="login-label" for="loginEmailInput">邮箱</label>
-                    <input id="loginEmailInput" class="login-input" type="email"
-                           placeholder="请输入常用邮箱地址" maxlength="100" autocomplete="email" />
+                    <!-- 统一账号输入框（自动识别邮箱/手机号） -->
+                    <label class="login-label" id="loginAccountLabel" for="loginAccountInput">邮箱 / 手机号</label>
+                    <input id="loginAccountInput" class="login-input" type="text"
+                           placeholder="请输入邮箱或手机号" maxlength="100" autocomplete="username" />
 
                     <!-- 验证码区域（默认展示） -->
                     <div id="codeModeSection">
@@ -55,9 +77,9 @@ function ensureLoginUi() {
                         <div class="login-inline-row">
                             <input id="loginCodeInput" class="login-input" type="text"
                                    inputmode="numeric" placeholder="请输入 6 位验证码" maxlength="6" />
-                            <button id="sendEmailCodeBtn" class="login-secondary-btn" type="button">发送验证码</button>
+                            <button id="sendCodeBtn" class="login-secondary-btn" type="button">发送验证码</button>
                         </div>
-                        <!-- 可选密码提示 -->
+                        <!-- 可选密码提示（仅邮箱模式显示） -->
                         <div id="optionalPasswordHint" style="margin-top:8px;">
                             <label class="login-label" for="loginOptionalPwdInput">
                                 设置密码 <span style="font-weight:400;font-size:0.8em;color:#9ca3af;">(可选，设了以后可用密码登录)</span>
@@ -152,20 +174,31 @@ function switchLoginMode(mode) {
 
 // ===== 事件处理 =====
 
-async function handleSendEmailCode() {
-    const email = document.getElementById('loginEmailInput')?.value || '';
-    const btn = document.getElementById('sendEmailCodeBtn');
+async function handleSendCode() {
+    const account = document.getElementById('loginAccountInput')?.value || '';
+    const btn = document.getElementById('sendCodeBtn');
+    const inputType = detectInputType(account);
+
+    // 输入校验
+    if (inputType === 'unknown') {
+        setStatus('请输入正确的邮箱地址或手机号', 'error');
+        return;
+    }
 
     try {
         setStatus('正在发送验证码…', 'pending');
         btn.disabled = true;
         btn.textContent = '发送中…';
 
-        await sendEmailCode(email);
+        if (inputType === 'email') {
+            await sendEmailCode(account);
+            setStatus('验证码已发送，请查收邮箱后输入 6 位验证码。', 'success');
+        } else {
+            await sendSmsCode(account);
+            setStatus('验证码已发送到手机，请注意查收短信。', 'success');
+        }
 
-        // 开始倒计时
         startCountdown(btn);
-        setStatus('验证码已发送，请查收邮箱后输入 6 位验证码。', 'success');
     } catch (error) {
         setStatus(error.message || '发送失败，请稍后重试。', 'error');
         btn.disabled = false;
@@ -190,21 +223,39 @@ function startCountdown(btn) {
 }
 
 async function handleLogin() {
-    const email = document.getElementById('loginEmailInput')?.value || '';
+    const account = document.getElementById('loginAccountInput')?.value || '';
+    const inputType = detectInputType(account);
+
+    // 输入校验
+    if (inputType === 'unknown') {
+        setStatus('请输入正确的邮箱地址或手机号', 'error');
+        return;
+    }
+
+    // 手机号不支持密码模式（目前）
+    if (currentMode === 'password' && inputType === 'phone') {
+        setStatus('手机号暂仅支持验证码登录，请切换到验证码模式', 'error');
+        return;
+    }
 
     try {
         setStatus('正在登录…', 'pending');
 
         let result;
         if (currentMode === 'code') {
-            // 验证码模式
+            // 验证码模式 — 自动识别邮箱/手机号
             const code = (document.getElementById('loginCodeInput')?.value || '').trim();
-            const optionalPwd = (document.getElementById('loginOptionalPwdInput')?.value || '').trim();
-            result = await emailCodeLogin(email, code, optionalPwd || undefined);
+
+            if (inputType === 'email') {
+                const optionalPwd = (document.getElementById('loginOptionalPwdInput')?.value || '').trim();
+                result = await emailCodeLogin(account, code, optionalPwd || undefined);
+            } else {
+                result = await smsLogin(account, code);
+            }
         } else {
-            // 密码模式
+            // 密码模式（仅邮箱支持）
             const pwd = (document.getElementById('loginPwdInput')?.value || '').trim();
-            result = await passwordLogin(email, pwd);
+            result = await passwordLogin(account, pwd);
         }
 
         setStatus('✅ 登录成功，正在进入云端同步…', 'success');
@@ -220,25 +271,39 @@ async function handleLogin() {
 function bindUiEvents() {
     if (uiBound) return;
 
-    const sendBtn = document.getElementById('sendEmailCodeBtn');
+    const sendBtn = document.getElementById('sendCodeBtn');
     const submitBtn = document.getElementById('loginSubmitBtn');
-    const emailInput = document.getElementById('loginEmailInput');
+    const accountInput = document.getElementById('loginAccountInput');
+    const accountLabel = document.getElementById('loginAccountLabel');
     const codeInput = document.getElementById('loginCodeInput');
     const pwdInput = document.getElementById('loginPwdInput');
+    const optionalPwdHint = document.getElementById('optionalPasswordHint');
     const logoutBtn = document.getElementById('authLogoutBtn');
     const closeBtn = document.getElementById('loginCloseBtn');
     const cancelBtn = document.getElementById('loginCancelBtn');
     const modeSwitchBtn = document.getElementById('loginModeSwitch');
     const dismiss = () => hideLoginPage();
 
-    sendBtn?.addEventListener('click', handleSendEmailCode);
+    sendBtn?.addEventListener('click', handleSendCode);
     submitBtn?.addEventListener('click', handleLogin);
 
+    // 输入时实时更新标签文字 + 控制可选密码显示（仅邮箱模式）
+    accountInput?.addEventListener('input', () => {
+        const value = accountInput.value;
+        const type = detectInputType(value);
+        accountLabel.textContent = getAccountLabel(value);
+
+        // 可选密码仅邮箱模式有意义，手机号模式隐藏
+        if (optionalPwdHint) {
+            optionalPwdHint.style.display = (type === 'phone') ? 'none' : '';
+        }
+    });
+
     // 回车键快捷操作
-    emailInput?.addEventListener('keydown', (event) => {
+    accountInput?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            if (currentMode === 'code') handleSendEmailCode();
+            if (currentMode === 'code') handleSendCode();
             else pwdInput?.focus();
         }
     });

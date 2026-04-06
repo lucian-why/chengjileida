@@ -140,25 +140,21 @@
                     </div>
                     <div class="setting-item">
                         <div>
-                            <div class="setting-label">导出数据</div>
-                            <div class="setting-desc">导出为 Excel 文件</div>
-                        </div>
-                        <button class="btn-small" id="exportBtn">导出</button>
-                    </div>
-                    <div class="setting-item">
-                        <div>
-                            <div class="setting-label">导入数据</div>
-                            <div class="setting-desc">从 Excel 文件导入</div>
-                        </div>
-                        <button class="btn-small" id="importBtn">导入</button>
-                        <input type="file" id="importFile" accept=".xlsx,.xls" style="display: none;">
-                    </div>
-                    <div class="setting-item">
-                        <div>
                             <div class="setting-label">云端同步</div>
                             <div class="setting-desc">备份到云端，或从云端恢复档案</div>
                         </div>
                         <button class="btn-small" id="cloudSyncBtn" style="background: linear-gradient(135deg, #7ca9c9, #8fb7a3); color: #fff; border-color: transparent;">同步</button>
+                    </div>
+                    <div class="setting-item setting-item-stacked">
+                        <div>
+                            <div class="setting-label">导入与导出数据</div>
+                            <div class="setting-desc">支持 Excel 文件导入和导出</div>
+                        </div>
+                        <div class="setting-action-group">
+                            <button class="btn-small" id="importBtn">导入</button>
+                            <button class="btn-small" id="exportBtn">导出</button>
+                        </div>
+                        <input type="file" id="importFile" accept=".xlsx,.xls" style="display: none;">
                     </div>
                 </div>
             </div>
@@ -184,4 +180,5 @@
     <script type="module" src="/src/app.js"></script>
 </body>
 </html>
+
 

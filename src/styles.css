@@ -1345,6 +1345,22 @@ body {
     color: var(--text-secondary);
 }
 
+.setting-item-stacked {
+    align-items: flex-start;
+}
+
+.setting-action-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.setting-action-group .btn-small {
+    min-width: 88px;
+}
+
 .btn-small {
     padding: 8px 16px;
     font-size: 0.9rem;
@@ -2614,5 +2630,6 @@ body.auth-locked {
     display: flex;
     gap: 10px;
 }
+
 
 

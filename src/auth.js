@@ -5,9 +5,11 @@
  *
  * 对外暴露：
  *   - initSupabase() / isAuthEnabled()
- *   - sendEmailCode(email)           — 发送验证码
+ *   - sendEmailCode(email)           — 发送邮箱验证码
+ *   - sendSmsCode(phone)             — 发送短信验证码（家长用）
  *   - emailLogin(email, code)        — 验证码登录/注册（兼容旧接口名）
  *   - emailCodeLogin(email, code, [pwd]) — 验证码登录/注册（新接口，支持可选密码）
+ *   - smsLogin(phone, code)          — 短信验证码登录/注册
  *   - passwordLogin(email, pwd)      — 密码登录
  *   - resetPassword(email, code, pwd)— 重置密码
  *   - getCurrentUser() / signOut() / verifyToken()
@@ -22,7 +24,9 @@ import {
     verifyToken as verifyTCBToken,
     getCurrentUser as getTCBCurrentUser,
     signOut as signOutTCB,
-    getTCBEnvId
+    getTCBEnvId,
+    sendSmsCode as sendTCBSmsCode,
+    phoneLogin as tcbPhoneLogin
 } from './cloud-tcb.js';
 
 let initialized = false;
@@ -108,6 +112,24 @@ export async function emailCodeLogin(email, code, password) {
 export async function passwordLogin(email, password) {
     if (!isAuthEnabled()) throw new Error('当前环境未启用腾讯云登录');
     const result = await tcbPasswordLogin(normalizeEmail(email), password);
+    emitAuthChange('SIGNED_IN', { user: result?.user || null, token: result?.token || null });
+    return result;
+}
+
+/** 发送短信验证码（给家长用） */
+export async function sendSmsCode(phone) {
+    if (!isAuthEnabled()) throw new Error('当前环境未启用腾讯云登录');
+    return await sendTCBSmsCode(phone);
+}
+
+/**
+ * 短信验证码登录/注册（给家长用，自动判断新用户 vs 老用户）
+ * @param {string} phone — 手机号
+ * @param {string} code — 6 位验证码
+ */
+export async function smsLogin(phone, code) {
+    if (!isAuthEnabled()) throw new Error('当前环境未启用腾讯云登录');
+    const result = await tcbPhoneLogin(phone, code);
     emitAuthChange('SIGNED_IN', { user: result?.user || null, token: result?.token || null });
     return result;
 }

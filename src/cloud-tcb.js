@@ -4,8 +4,10 @@
  * 职责：初始化 TCB SDK、发送验证码、密码登录、验证码注册/登录（自动判断）、Token 管理
  *
  * 架构说明（2026-04-06 重构）：
- *   - 发送验证码：走自建云函数 sendEmailCode（SMTP）
- *   - 验证码注册/登录：走自建云函数 emailRegister（自动判断新用户注册 vs 老用户登录）
+ *   - 发送邮箱验证码：走自建云函数 sendEmailCode（SMTP）
+ *   - 发送短信验证码：走自建云函数 sendSmsCode（腾讯云 SMS API）
+ *   - 验证码注册/登录（邮箱）：走自建云函数 emailRegister
+ *   - 验证码注册/登录（手机）：走自建云函数 phoneLogin
  *   - 密码登录：走自建云函数 passwordLogin
  *   - Token 验证：本地 localStorage 读写（与云函数返回的 token 对齐）
  *
@@ -15,7 +17,9 @@
  * 对外暴露：
  *   - initTCB() / getTCBEnvId()
  *   - sendEmailCode(email)        — 通过自建云函数发送邮箱验证码
- *   - emailCodeLogin(email, code)  — 通过云函数完成验证码登录/注册（自动判断）
+ *   - sendSmsCode(phone)          — 通过自建云函数发送短信验证码
+ *   - emailCodeLogin(email, code)  — 通过云函数完成邮箱验证码登录/注册
+ *   - phoneLogin(phone, code)     — 通过云函数完成手机号验证码登录/注册
  *   - passwordLogin(email, pwd)    — 通过云函数完成密码登录
  *   - verifyToken() / getCurrentUser() / signOut()
  *   - saveAuthSession() / clearAuthStorage() / isLoggedIn()
@@ -58,6 +62,12 @@ function normalizePassword(password) {
     const value = String(password || '');
     if (value.length < PASSWORD_MIN_LENGTH) throw new Error(`密码至少 ${PASSWORD_MIN_LENGTH} 个字符`);
     if (value.length > 64) throw new Error('密码过长');
+    return value;
+}
+
+function normalizePhone(phone) {
+    const value = String(phone || '').trim();
+    if (!/^1[3-9]\d{9}$/.test(value)) throw new Error('请输入正确的手机号');
     return value;
 }
 
@@ -276,6 +286,113 @@ export async function emailCodeLogin(email, code, password) {
         return { token: result.data.token, user };
     } catch (error) {
         throw buildError(error, '验证码操作失败');
+    }
+}
+
+
+// ===== 发送短信验证码（走 TCB 内置 SDK） =====
+
+/**
+ * 通过 TCB Auth SDK 的 signInWithOtp 发送短信验证码
+ * 流程：signInWithOtp({ phone }) → 返回 pending 对象（含 verifyOtp）
+ * 需要在 TCB 控制台 → 身份认证 → 勾选「短信验证码」
+ * 注意：短信验证码功能目前仅支持「上海」地域 (ap-shanghai)
+ *
+ * @param {string} phone — 手机号（11位，不需要带 +86）
+ */
+export async function sendSmsCode(phone) {
+    const normalizedPhone = normalizePhone(phone);
+
+    try {
+        const auth = await getAuth();
+
+        // signInWithOtp 会发送验证码，返回的对象包含 verifyOtp 方法用于后续验证登录
+        const result = await auth.signInWithOtp({
+            phone: normalizedPhone  // SDK 内部会处理区号
+        });
+
+        if (result?.error) {
+            const msg = result.error.message || result.error.msg || '';
+            if (msg.includes('频率') || msg.includes('Frequency') || msg.includes('频繁')) {
+                throw new Error('操作过于频繁，请60秒后重试');
+            }
+            throw new Error(msg || '短信验证码发送失败');
+        }
+
+        // 将 pending 验证对象临时保存，供后续 phoneLogin 使用
+        _otpPending = result?.data || result;
+
+        console.log("[cloud-tcb] 短信验证码已发送至:", normalizedPhone);
+        return result;
+    } catch (error) {
+        throw buildError(error, "短信验证码发送失败");
+    }
+}
+
+/** 暂存 signInWithOtp 返回的 pending 对象（用于后续验证码校验+登录） */
+let _otpPending = null;
+
+
+// ===== 短信验证码登录/注册（走 TCB 内置 SDK） =====
+
+/**
+ * 用手机号 + 验证码完成登录或注册
+ * 走 TCB 的 OTP 验证流程（signInWithOtp 返回的 verifyOpt）
+ *
+ * @param {string} phone — 手机号（11位）
+ * @param {string} code — 6 位验证码
+ * @returns {Promise<{user: object, token: string}>}
+ */
+export async function phoneLogin(phone, code) {
+    const normalizedPhone = normalizePhone(phone);
+    const normalizedCode = normalizeCode(code);
+
+    try {
+        // 优先用暂存的 pending 对象（用户在同一会话中先发验证码再登录）
+        let verifyResult;
+
+        if (_otpPending && _otpPending.verifyOtp) {
+            verifyResult = await _otpPending.verifyOtp({
+                token: normalizedCode
+            });
+            _otpPending = null; // 用完即清
+        } else {
+            // 如果没有 pending 对象（比如刷新了页面），直接用 auth.verifyOtp
+            const auth = await getAuth();
+            verifyResult = await auth.verifyOtp({
+                phone: normalizedPhone,
+                token: normalizedCode
+            });
+        }
+
+        if (verifyResult?.error) {
+            const msg = verifyResult.error.message || verifyResult.error.msg || '';
+            if (msg.includes('验证码') || msg.includes('code') || msg.includes('token')) {
+                throw new Error('验证码错误或已过期，请重新发送');
+            }
+            throw new Error(msg || '登录失败');
+        }
+
+        // TCB 内置返回的用户信息格式
+        const rawUser = verifyResult?.data?.user || verifyResult?.user;
+        const user = {
+            id: rawUser?.uid || rawUser?.id || '',
+            phone: normalizedPhone,
+            nickname: rawUser?.nickname || '手机用户',
+            email: rawUser?.email || '',
+            avatarUrl: rawUser?.avatarUrl || null,
+            hasWeixin: !!rawUser?.hasWeixin,
+            hasPhone: true
+        };
+
+        if (!user.id) throw new Error('返回结果不完整');
+
+        saveAuthSession({ user }); // TCB 内置模式 session 由 SDK 管理
+
+        console.log(`[cloud-tcb] 短信登录成功:`, normalizedPhone);
+        return { token: null, user };
+    } catch (error) {
+        throw buildError(error, '短信登录失败');
     }
 }
 

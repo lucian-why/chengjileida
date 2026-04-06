@@ -496,3 +496,221 @@ $content = [System.IO.File]::ReadAllText("index.html", [System.Text.UTF8Encoding
 - 最强/最弱科目分析提示
 
 **核心原则**：`index.html` 的中文注释和 UI 字符串是该文件的灵魂，编码一旦损坏极难恢复，务必谨慎操作。
+
+## 注册/登录合并模式（2026-04-06）
+
+### 背景
+
+原系统只有验证码登录一种方式，且前后端架构不统一：
+- 前端用 Cloudbase Auth SDK 的 `getVerification`/`signInWithEmail`
+- 后端有自建云函数 `emailRegister`/`passwordLogin`/`resetPassword` 但未接入前端
+- 导致验证码登录一直报 `verification_id and verification_code required` 错误
+
+本次重构统一为**混合架构**：
+
+| 功能 | 走的通道 | 说明 |
+|------|----------|------|
+| 发送验证码 | **腾讯云官方 Auth SDK** | `auth.getVerification()`，走官方邮件通道 |
+| 验证码注册/登录 | **自建云函数 `emailRegister`** | 自动判断新用户注册 / 老用户登录 |
+| 密码登录 | **自建云函数 `passwordLogin`** | 邮箱 + 密码，不需要验证码 |
+| 重置密码 | **自建云函数 `resetPassword`** | 邮箱 + 验证码 + 新密码 |
+
+### 设计方案：合并模式（无感注册）
+
+**核心思路**：不区分"注册"和"登录"两个入口，用户只看到一种操作——输入邮箱 + 验证码点登录。
+
+- **新用户**：首次用验证码登录 → 云函数自动创建账号 → 返回"注册成功"
+- **老用户**：直接用验证码或密码登录 → 返回"登录成功"
+- **密码可选**：验证码模式下可填密码也可留空；填了以后就能用密码登录
+- **昵称暂不做**：后续在个人中心实现昵称设置功能
+
+### UI 交互
+
+```
+┌─────────────────────────────┐
+│         ×                   │
+│       成绩雷达               │
+│  登录后可启用云端备份与多端同步 │
+│                             │
+│  邮箱                        │
+│  ┌───────────────────────┐   │
+│  │ 请输入常用邮箱地址      │   │
+│  └───────────────────────┘   │
+│                             │
+│  验证码                      │
+│  ┌────────────┐ ┌─────────┐ │
+│  │ 输入6位验证码 │ │发送验证码│ │
+│  └────────────┘ └─────────┘ │
+│                             │
+│  设置密码 (可选)              │
+│  ┌───────────────────────┐   │
+│  │ 留空则仅使用验证码登录   │   │
+│  └───────────────────────┘   │
+│                             │
+│    或使用密码登录 ▸          │
+│                             │
+│  ┌───────────────────────┐   │
+│  │     验证码登录          │   │
+│  └───────────────────────┘   │
+│  ┌ 暂不登录，返回页面 ─────┐  │
+│  └────────────────────────┘  │
+│                             │
+│  （状态提示区）                │
+└─────────────────────────────┘
+```
+
+点击"或使用密码登录 ▸"后切换为：
+
+```
+  密码
+  ┌───────────────────────┐
+  │ 请输入登录密码          │
+  └───────────────────────┘
+
+  ◂ 返回验证码登录
+
+  ┌───────────────────────┐
+  │       密码登录          │
+  └───────────────────────┘
+```
+
+### 改动清单
+
+#### 1. `src/cloud-tcb.js` — 完全重写
+
+- **移除**：Cloudbase Auth SDK 的 `getAuth()`、`authInstance` 单例、`read/writeVerificationInfo()`、`mapAuthUser()`(旧版)
+- **新增**：
+  - `sendEmailCode(email)` — 改为每次新建 SDK 实例调 `auth.getVerification()`，不再缓存 auth 实例
+  - `emailCodeLogin(email, code, [password])` — 调用云函数 `emailRegister`，支持可选密码参数
+  - `passwordLogin(email, password)` — 调用云函数 `passwordLogin`
+  - `resetPassword(email, code, newPassword)` — 调用云函数 `resetPassword`
+  - `normalizePassword()` — 密码校验（6~64 字符）
+  - `mapCloudUser()` — 将云函数返回格式映射为前端统一格式
+- **保留**：`initTCB() / callFunction() / saveAuthSession() / clearAuthStorage() / verifyToken() / getCurrentUser() / signOut()` 等
+
+#### 2. `src/auth.js` — 新增导出
+
+- **新增导出**：`emailCodeLogin(email, code, [pwd])`、`passwordLogin(email, pwd)`、`resetPassword(email, code, pwd)`
+- **保留兼容**：`emailLogin(email, code)` 仍可用（内部转发到 `emailCodeLogin`）
+
+#### 3. `src/login-ui.js` — UI 重构
+
+- **移除**：`VERIFICATION_INFO_KEY` 相关的本地读取/恢复逻辑（不再需要 localStorage 中转 verification info）
+- **新增**：
+  - 双模式切换：验证码模式（默认）/ 密码模式（点击切换）
+  - 可选密码输入框（验证码模式下的"设置密码(可选)"）
+  - 发送验证码按钮 60s 倒计时
+  - 模式切换按钮 `.login-mode-switch`
+  - 提交按钮文字随模式变化："验证码登录" ↔ "密码登录"
+- **每次打开重置**为验证码模式，避免状态残留
+
+#### 4. `src/styles.css` — 新增样式
+
+- `.login-mode-switch` — 模式切换按钮样式
+- `.switch-arrow` + hover 动画
+- `.login-inline-row` — 验证码行内布局（从旧代码中提取确认存在）
+
+### 云函数接口约定
+
+#### `emailRegister` — 验证码注册/登录
+
+```json
+// 请求
+{ "email": "user@example.com", "code": "123456", "password": "可选" }
+// 成功响应
+{ "code": 0, "message": "注册成功/登录成功", "data": { "token": "...", "user": { ... }, "expiresIn": 604800 } }
+// 错误码：400(参数错) 401(验证码无效) 409(已注册)
+```
+
+#### `passwordLogin` — 密码登录
+
+```json
+// 请求
+{ "email": "user@example.com", "password": "xxxxxx" }
+// 成功响应同上
+// 错误码：400(参数错) 401(账号/密码错) 402(未设密码) 403(被禁用)
+```
+
+#### `resetPassword` — 重置密码
+
+```json
+// 请求
+{ "email": "...", "code": "123456", "newPassword": "xxxxxx" }
+// 错误码：400 401(验证码无效) 404(未注册)
+```
+
+### 验证要点
+
+- [ ] 默认显示验证码登录界面
+- [ ] 发送验证码后按钮进入 60s 倒计时
+- [ ] 新用户首次验证码登录 → 自动注册成功（控制台显示"注册成功"）
+- [ ] 老用户验证码登录 → 正常登录
+- [ ] 切换到密码模式 → 显示密码输入框，提交按钮变为"密码登录"
+- [ ] 密码登录正常工作
+- [ ] 验证码模式下设置可选密码 → 注册同时设密，之后可以用密码登录
+- [ ] 验证码模式不填密码 → 仅验证码登录，不影响后续设密码
+- [ ] 构建通过：`npm run build` → dist/index.html 单文件输出
+
+## 验证码登录优化（2026-04-05）
+
+### 背景 / Bug
+
+用户发送邮箱验证码后，若误触关闭登录弹窗（点击 ×、取消按钮、按 Escape、或点击遮罩层），再次打开登录页时虽然邮箱和验证码输入框的值还在，但点击「验证码登录」会提示"请先发送验证码"，导致已发的验证码无法复用。
+
+### 根因（更新：2026-04-05 深度排查）
+
+**表面现象**：`cloud-tcb.js:184` 的 `emailLogin()` 对 verification_info 做了前端校验。
+
+**真正根因**：项目使用 `@cloudbase/js-sdk@^2.27.2`（v2 版本），v2 的 `signInWithEmail` 要求传入 `getVerification` 返回的**完整 verificationInfo 对象**。但原代码在发送验证码后**只拆存了 `verification_id` 和 `is_user` 两个字段**，登录时自己拼了一个不完整的对象回传。SDK 收到不完整的 verificationInfo → 报 `verification_id and verification_code required`。
+
+```js
+// ❌ 原代码：拆散存储 + 重组时丢失字段
+writeVerificationInfo({
+  email,
+  verification_id: info.verification_id,  // 只存了一个字段
+  is_user: info.is_user
+});
+// 登录时：
+signInWithEmail({ verificationInfo: { verification_id, is_user } })  // 不完整！
+
+// ✅ 修复后：存储完整对象，登录时原样回传
+writeVerificationInfo({ email, rawVerificationInfo: info });  // 整个对象存下
+// 登录时：
+signInWithEmail({ verificationInfo: storedInfo.rawVerificationInfo })  // 原样传回
+```
+
+**误触关闭弹窗后验证码失效的连锁原因**：由于 verificationInfo 对象不完整，即使 localStorage 里数据还在、前端校验通过，SDK 层面也会因为缺少必要字段而拒绝 → 用户感知为"验证码失效"。
+
+### 改动清单
+
+#### 1. `src/cloud-tcb.js` — `emailLogin()` 容错处理
+
+- **移除硬性前置拦截**（原第 184~186 行）
+- 改为"有 verification_info 就带上尝试调用 SDK，没有也允许调用（让服务端决定）"
+- 新增**验证码错误语义识别**：SDK 返回的错误信息若包含 `验证码|verification|expired|invalid|过期|无效` 等关键词，返回明确提示「验证码已过期或无效，请重新发送」而非笼统的"登录失败"
+
+#### 2. `src/login-ui.js` — 登录页状态恢复 + 关闭提示
+
+- **新增本地 `readVerificationInfo()` 函数**：从 `localStorage`（key: `tcb_email_verification_info`）读取验证信息，避免依赖 cloud-tcb.js 内部实现
+- **`showLoginPage()` 增强**：打开登录页时自动检测是否有之前发送但未使用的 `verification_info`
+  - 若有 → 自动填入之前使用的邮箱地址（仅当输入框为空时）
+  - 显示友好提示：「✉️ 之前已发送过验证码（可能仍有效），可直接输入验证码尝试登录」
+- **`hideLoginPage()` 增强**：关闭/取消登录页时检测是否残留未使用的 `verification_info`
+  - 若有 → 显示短暂浮层 toast（2.5s 自动消失）：「验证码仍有效，随时回来继续登录」
+- **新增 `showTransientToast()` 工具函数**：纯 DOM 实现，不依赖外部框架，固定定位显示在页面顶部中央
+
+### 改动文件汇总
+
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `src/cloud-tcb.js` | Bug 修复 + 容错 | `emailLogin()` 移除硬性拦截，改为宽容策略 + 语义化错误提示 |
+| `src/login-ui.js` | 体验优化 | 登录页打开时自动恢复验证码状态；关闭时显示 toast 提示 |
+
+### 验证要点
+
+- [ ] 发送验证码 → 关闭弹窗 → 重新打开 → 邮箱自动填充 + 显示"验证码可能仍有效"提示
+- [ ] 发送验证码 → 关闭弹窗 → 页面顶部出现蓝色 toast "验证码仍有效，随时回来继续登录"
+- [ ] 验证码未过期时直接输入验证码可成功登录
+- [ ] 验证码已过期时显示明确的"请重新发送"提示
+- [ ] 未发送过验证码时正常提示"请先发送验证码"
+- [ ] 正常流程（发验证码→立即输入→登录）不受影响
