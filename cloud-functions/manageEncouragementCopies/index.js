@@ -17,6 +17,32 @@ const DEFAULT_COPIES = {
   ]
 };
 
+function parseEventPayload(event) {
+  if (!event) return {};
+  if (typeof event === 'string') {
+    try { return JSON.parse(event); } catch { return {}; }
+  }
+  if (event.queryStringParameters && typeof event.queryStringParameters === 'object') {
+    return event.queryStringParameters;
+  }
+  if (event.queryString && typeof event.queryString === 'object') {
+    return event.queryString;
+  }
+  if (event.body) {
+    let body = event.body;
+    if (event.isBase64Encoded && typeof body === 'string') {
+      try { body = Buffer.from(body, 'base64').toString('utf8'); } catch {}
+    }
+    if (typeof body === 'string') {
+      try { return JSON.parse(body); } catch {}
+      try { return Object.fromEntries(new URLSearchParams(body)); } catch {}
+      return {};
+    }
+    if (typeof body === 'object') return body;
+  }
+  return event;
+}
+
 function sortCopies(list = []) {
   return [...list].sort((a, b) => {
     const sortGap = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
@@ -149,21 +175,22 @@ function assertAdmin(event = {}) {
 }
 
 exports.main = async (event = {}) => {
-  const action = String(event.action || '').trim();
+  const payload = parseEventPayload(event);
+  const action = String(payload.action || '').trim();
 
   try {
-    assertAdmin(event);
+    assertAdmin(payload);
     switch (action) {
       case 'list':
-        return { code: 0, data: { copies: await listCopies(String(event.sceneKey || '').trim()) } };
+        return { code: 0, data: { copies: await listCopies(String(payload.sceneKey || '').trim()) } };
       case 'save':
-        return { code: 0, data: await saveCopy(event.copy || {}) };
+        return { code: 0, data: await saveCopy(payload.copy || {}) };
       case 'remove':
-        return { code: 0, data: await removeCopy(String(event.id || '').trim()) };
+        return { code: 0, data: await removeCopy(String(payload.id || '').trim()) };
       case 'toggleStatus':
-        return { code: 0, data: await toggleStatus(String(event.id || '').trim(), event.status) };
+        return { code: 0, data: await toggleStatus(String(payload.id || '').trim(), payload.status) };
       case 'seedDefaults':
-        return { code: 0, data: await seedDefaults(String(event.sceneKey || '').trim()) };
+        return { code: 0, data: await seedDefaults(String(payload.sceneKey || '').trim()) };
       default:
         return { code: 400, message: '不支持的 action' };
     }

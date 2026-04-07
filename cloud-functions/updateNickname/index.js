@@ -8,11 +8,23 @@ function parseEventPayload(event) {
   if (typeof event === 'string') {
     try { return JSON.parse(event); } catch { return {}; }
   }
+  if (event.queryStringParameters && typeof event.queryStringParameters === 'object') {
+    return event.queryStringParameters;
+  }
+  if (event.queryString && typeof event.queryString === 'object') {
+    return event.queryString;
+  }
   if (event.body) {
-    if (typeof event.body === 'string') {
-      try { return JSON.parse(event.body); } catch { return {}; }
+    let body = event.body;
+    if (event.isBase64Encoded && typeof body === 'string') {
+      try { body = Buffer.from(body, 'base64').toString('utf8'); } catch {}
     }
-    if (typeof event.body === 'object') return event.body;
+    if (typeof body === 'string') {
+      try { return JSON.parse(body); } catch {}
+      try { return Object.fromEntries(new URLSearchParams(body)); } catch {}
+      return {};
+    }
+    if (typeof body === 'object') return body;
   }
   return event;
 }

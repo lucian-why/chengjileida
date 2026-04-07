@@ -234,7 +234,7 @@ async function ensureCallableAuth() {
 
 function shouldFallbackToHttp(error) {
     const message = String(error?.message || error || '');
-    return /PERMISSION_DENIED|OPERATION_FAIL|匿名登录初始化失败|signInAnonymously|not authorized/i.test(message);
+    return /PERMISSION_DENIED|OPERATION_FAIL|匿名登录初始化失败|signInAnonymously|not authorized|network request error|failed to fetch|fetch failed/i.test(message);
 }
 
 async function callHttpFunction(name, data = {}) {

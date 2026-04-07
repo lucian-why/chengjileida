@@ -5,6 +5,32 @@ const db = app.database();
 
 const COLLECTION = 'encouragement_copies';
 
+function parseEventPayload(event) {
+  if (!event) return {};
+  if (typeof event === 'string') {
+    try { return JSON.parse(event); } catch { return {}; }
+  }
+  if (event.queryStringParameters && typeof event.queryStringParameters === 'object') {
+    return event.queryStringParameters;
+  }
+  if (event.queryString && typeof event.queryString === 'object') {
+    return event.queryString;
+  }
+  if (event.body) {
+    let body = event.body;
+    if (event.isBase64Encoded && typeof body === 'string') {
+      try { body = Buffer.from(body, 'base64').toString('utf8'); } catch {}
+    }
+    if (typeof body === 'string') {
+      try { return JSON.parse(body); } catch {}
+      try { return Object.fromEntries(new URLSearchParams(body)); } catch {}
+      return {};
+    }
+    if (typeof body === 'object') return body;
+  }
+  return event;
+}
+
 function sortCopies(list = []) {
   return [...list].sort((a, b) => {
     const sortGap = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
@@ -14,8 +40,9 @@ function sortCopies(list = []) {
 }
 
 exports.main = async (event = {}) => {
-  const sceneKey = String(event.sceneKey || '').trim();
-  const excludeId = String(event.excludeId || '').trim();
+  const payload = parseEventPayload(event);
+  const sceneKey = String(payload.sceneKey || '').trim();
+  const excludeId = String(payload.excludeId || '').trim();
 
   if (!sceneKey) {
     return { code: 400, message: 'sceneKey 不能为空' };
