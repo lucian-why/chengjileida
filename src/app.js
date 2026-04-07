@@ -15,6 +15,8 @@ import { setupImportExport, setDependencies as setImportExportDeps } from './imp
 import { openShareExamReport, openShareProfileReport, closeShareReport, downloadReport, setupReportEvents } from './report.js';
 import { setupDemoBtn, checkFirstLaunch, setDependencies as setDemoDataDeps } from './demo-data.js';
 import { openCloudSyncPanel, closeCloudSyncPanel, setDependencies as setCloudSyncDeps } from './cloud-sync-ui.js';
+import { ENCOURAGEMENT_SCENES, leaveEncouragementScene, restoreActiveEncouragementScene } from './encouragement-copy.js';
+import { startAdminApp } from './admin-app.js';
 
 let appEventsBound = false;
 let appCoreReady = false;
@@ -23,12 +25,15 @@ let pendingPostLoginAction = '';
 
 async function refreshAll() {
     renderProfileSwitcher();
+    const activeEmptySceneKey = restoreActiveEncouragementScene();
 
     if (!state.currentExamId) {
         const exams = getExams(getActiveProfileId());
-        if (exams.length > 0) {
+        if (exams.length > 0 && !activeEmptySceneKey) {
             const sorted = [...exams].sort((a, b) => new Date(b.startDate || b.createdAt) - new Date(a.startDate || a.createdAt));
             state.currentExamId = sorted[0].id;
+            state.detailEmptySceneKey = '';
+            leaveEncouragementScene(ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY);
         }
     }
 
@@ -155,8 +160,16 @@ function bindAppEvents() {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
 
+            if (this.dataset.tab !== 'exam') {
+                leaveEncouragementScene(ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY);
+            }
+
             this.classList.add('active');
             document.getElementById(`tab-${this.dataset.tab}`)?.classList.add('active');
+
+            if (this.dataset.tab === 'exam') {
+                await renderExamDetail();
+            }
 
             if (this.dataset.tab === 'trend') {
                 updateChartTabs();
@@ -281,20 +294,33 @@ function setupAuthHandlers() {
 }
 
 async function startApp() {
-    initSupabase();
-
-    await initCoreApp();
-
-    if (!isAuthEnabled()) {
-        clearAuthStatus();
+    if (window.location.pathname === '/admin') {
+        window.location.replace('/admin/');
         return;
     }
 
-    setupAuthHandlers();
+    const isAdminPage = /\/admin\/?$/.test(window.location.pathname);
+    if (isAdminPage) {
+        await startAdminApp();
+        return;
+    }
+
+    initSupabase();
+
+    await initCoreApp();
     const user = await getCurrentUser();
+
+    if (isAuthEnabled()) {
+        setupAuthHandlers();
+    }
+
     if (!user) {
-        renderGuestAuthStatus();
-        hideLoginPage();
+        if (!isAuthEnabled()) {
+            clearAuthStatus();
+        } else {
+            renderGuestAuthStatus();
+            hideLoginPage();
+        }
         return;
     }
 

@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { viteSingleFile } from 'vite-plugin-singlefile';
+import { resolve } from 'node:path';
 
 export default defineConfig({
     server: {
@@ -10,9 +10,11 @@ export default defineConfig({
         emptyOutDir: true,
         cssCodeSplit: false,
         rollupOptions: {
-            input: 'index.html'
+            input: {
+                main: resolve(__dirname, 'index.html'),
+                admin: resolve(__dirname, 'admin/index.html')
+            }
         },
         target: 'es2020'
-    },
-    plugins: [viteSingleFile()]
+    }
 });

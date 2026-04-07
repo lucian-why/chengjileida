@@ -13,6 +13,7 @@
 // 集中状态管理 - 使用导出对象让各模块可以读写
 const state = {
     currentExamId: null,
+    detailEmptySceneKey: '',
     trendChart: null,
     trendAnalysisMode: 'score', // 'score' 或 'rank'
     trendRankType: 'class',     // 'class' 或 'grade'（排名模式下）
@@ -28,6 +29,7 @@ const state = {
     _reportType: '',            // 'exam' 或 'profile'
     _reportData: null,
     batchList: [],
+    encouragementCopyCache: {},
 };
 
 export default state;

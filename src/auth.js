@@ -36,6 +36,53 @@ import {
 let initialized = false;
 let authEnabled = false;
 const listeners = new Set();
+const ADMIN_ACCOUNT = 'admin';
+const ADMIN_PASSWORD = 'why123456';
+const ADMIN_STORAGE_KEY = 'xueji_admin_session';
+const ADMIN_ACCESS_TOKEN = 'xueji_admin_token_v1';
+
+function isBrowser() {
+    return typeof window !== 'undefined';
+}
+
+function buildAdminUser() {
+    return {
+        id: 'local-admin',
+        nickname: '管理员',
+        role: 'admin',
+        isAdmin: true,
+        accessToken: ADMIN_ACCESS_TOKEN,
+        email: '',
+        phone: '',
+        authProvider: 'local-admin'
+    };
+}
+
+function getStoredAdminUser() {
+    if (!isBrowser()) return null;
+    const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.isAdmin) return parsed;
+    } catch {}
+    localStorage.removeItem(ADMIN_STORAGE_KEY);
+    return null;
+}
+
+function saveAdminUser(user) {
+    if (!isBrowser()) return;
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(user));
+}
+
+function clearAdminUser() {
+    if (!isBrowser()) return;
+    localStorage.removeItem(ADMIN_STORAGE_KEY);
+}
+
+function isAdminAccount(account) {
+    return String(account || '').trim().toLowerCase() === ADMIN_ACCOUNT;
+}
 
 function hasAuthConfig() {
     return Boolean(getTCBEnvId()) && import.meta.env.VITE_ENABLE_AUTH !== 'false';
@@ -69,8 +116,19 @@ export function isAuthEnabled() {
 }
 
 export async function getCurrentUser() {
+    const adminUser = getStoredAdminUser();
+    if (adminUser) return adminUser;
     if (!isAuthEnabled()) return null;
     return await getTCBCurrentUser();
+}
+
+export function isAdminUser(user) {
+    return Boolean(user?.isAdmin || user?.role === 'admin');
+}
+
+export function getAdminAccessToken() {
+    const adminUser = getStoredAdminUser();
+    return isAdminUser(adminUser) ? (adminUser.accessToken || ADMIN_ACCESS_TOKEN) : '';
 }
 
 /** 发送邮箱验证码 */
@@ -114,6 +172,16 @@ export async function emailCodeLogin(email, code, password) {
  * @param {string} password — 密码
  */
 export async function passwordLogin(email, password) {
+    if (isAdminAccount(email)) {
+        if (String(password || '') !== ADMIN_PASSWORD) {
+            throw new Error('账号或密码错误');
+        }
+        const adminUser = buildAdminUser();
+        saveAdminUser(adminUser);
+        emitAuthChange('SIGNED_IN', { user: adminUser, token: 'local-admin' });
+        return { token: 'local-admin', user: adminUser };
+    }
+
     if (!isAuthEnabled()) throw new Error('当前环境未启用腾讯云登录');
     const result = await tcbPasswordLogin(normalizeEmail(email), password);
     emitAuthChange('SIGNED_IN', { user: result?.user || null, token: result?.token || null });
@@ -195,12 +263,17 @@ export async function resetPassword(email, code, newPassword) {
 }
 
 export async function verifyToken() {
+    const adminUser = getStoredAdminUser();
+    if (adminUser) return adminUser;
     if (!isAuthEnabled()) return null;
     return await verifyTCBToken();
 }
 
 export async function signOut() {
-    await signOutTCB();
+    clearAdminUser();
+    if (isAuthEnabled()) {
+        await signOutTCB();
+    }
     emitAuthChange('SIGNED_OUT', { user: null, token: null });
 }
 

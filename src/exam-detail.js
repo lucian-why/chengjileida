@@ -11,6 +11,7 @@ import {
 } from './storage.js';
 import { showToast } from './modal.js';
 import { updateScoreMax, getDisplayTotalScore, hasManualTotalMismatch } from './utils.js';
+import { ENCOURAGEMENT_SCENES, renderCollapsedEmptyEncouragement, leaveEncouragementScene } from './encouragement-copy.js';
 
 let _refreshAll = null;
 
@@ -69,6 +70,27 @@ export async function renderExamDetail() {
     const container = document.getElementById('examContent');
 
     if (!state.currentExamId) {
+        if (exams.length === 0) {
+            state.detailEmptySceneKey = '';
+            leaveEncouragementScene(ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY);
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <p>选择一场考试查看详情<br>或新建一场考试</p>
+                </div>
+            `;
+            return;
+        }
+
+        if (state.detailEmptySceneKey === ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY) {
+            await renderCollapsedEmptyEncouragement(container, {
+                pageKey: 'exam_detail',
+                profileId: getActiveProfileId(),
+                examCount: exams.length
+            });
+            return;
+        }
+
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">📝</div>
@@ -409,7 +431,9 @@ export function setupConfirmModalEvents() {
             saveExams(newExams);
 
             if (state.currentExamId == pendingDeleteExamId) {
+                leaveEncouragementScene(ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY);
                 state.currentExamId = null;
+                state.detailEmptySceneKey = '';
             }
 
             if (_refreshAll) _refreshAll();
@@ -476,7 +500,9 @@ export function setupExamFormSubmit() {
 
         saveExams(exams);
         closeExamModal();
+        leaveEncouragementScene(ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY);
         state.currentExamId = examData.id;
+        state.detailEmptySceneKey = '';
         if (_refreshAll) await _refreshAll();
     });
 }

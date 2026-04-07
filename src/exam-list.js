@@ -1,6 +1,7 @@
 import state from './store.js';
 import { getActiveProfileId, getExams } from './storage.js';
 import { getDisplayTotalScore, escHtml } from './utils.js';
+import { ENCOURAGEMENT_SCENES, leaveEncouragementScene } from './encouragement-copy.js';
 
 let _renderExamDetail = null;
 let _updateRadarChart = null;
@@ -88,6 +89,7 @@ export async function renderExamList() {
 export async function selectExam(examId) {
     if (String(state.currentExamId) === String(examId)) {
         state.currentExamId = null;
+        state.detailEmptySceneKey = ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY;
         state.isEditingTotalScore = false;
         state.manualTotalDraft = '';
         await renderExamList();
@@ -96,7 +98,9 @@ export async function selectExam(examId) {
         return;
     }
 
+    leaveEncouragementScene(ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY);
     state.currentExamId = examId;
+    state.detailEmptySceneKey = '';
     state.isEditingTotalScore = false;
     state.manualTotalDraft = '';
     await renderExamList();
@@ -105,7 +109,9 @@ export async function selectExam(examId) {
 }
 
 export async function selectSubject(examId, subjectName) {
+    leaveEncouragementScene(ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY);
     state.currentExamId = examId;
+    state.detailEmptySceneKey = '';
     state.isEditingTotalScore = false;
     state.manualTotalDraft = '';
     await renderExamList();

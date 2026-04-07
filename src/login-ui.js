@@ -22,6 +22,7 @@ import {
     sendEmailCode, sendSmsCode, emailCodeLogin, smsLogin, passwordLogin, resetPassword,
     phonePasswordLogin, phoneRegisterFn, phoneResetPasswordFn, updateUserNickname
 } from './auth.js';
+import { isAdminUser } from './auth.js';
 
 let onLoginSuccess = null;
 let onLogout = null;
@@ -38,6 +39,7 @@ let loginSubMode = 'login';
  */
 function detectInputType(value) {
     const trimmed = (value || '').trim();
+    if (trimmed.toLowerCase() === 'admin') return 'admin';
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return 'email';
     if (/^1[3-9]\d{9}$/.test(trimmed)) return 'phone';
     return 'unknown';
@@ -48,6 +50,7 @@ function detectInputType(value) {
  */
 function getAccountLabel(value) {
     const type = detectInputType(value);
+    if (type === 'admin') return '账号';
     if (type === 'email') return '邮箱';
     if (type === 'phone') return '手机号';
     return '邮箱 / 手机号';
@@ -260,6 +263,11 @@ async function handleSendCode(targetBtn) {
     const account = document.getElementById('loginAccountInput')?.value || '';
     const inputType = detectInputType(account);
 
+    if (inputType === 'admin') {
+        setStatus('该账号不支持验证码登录', 'error');
+        return;
+    }
+
     if (inputType === 'unknown') {
         setStatus('请输入正确的邮箱地址或手机号', 'error');
         return;
@@ -368,6 +376,11 @@ async function handlePasswordLogin(account, inputType) {
 }
 
 async function handleCodeLogin(account, inputType) {
+    if (inputType === 'admin') {
+        setStatus('该账号仅支持密码登录', 'error');
+        return;
+    }
+
     const code = (document.getElementById('loginCodeInput')?.value || '').trim();
 
     if (!code || !/^\d{6}$/.test(code)) {
@@ -389,6 +402,11 @@ async function handleCodeLogin(account, inputType) {
 }
 
 async function handleRegister(account, inputType) {
+    if (inputType === 'admin') {
+        setStatus('该账号不支持注册', 'error');
+        return;
+    }
+
     const code = (document.getElementById('loginCodeInput')?.value || '').trim();
     const pwd = (document.getElementById('loginPwdInput')?.value || '').trim();
 
@@ -574,6 +592,9 @@ function bindUiEvents() {
         if (inputType === 'unknown') {
             setStatus('请输入正确的邮箱地址或手机号', 'error'); return;
         }
+        if (inputType === 'admin') {
+            setStatus('该账号不支持找回密码', 'error'); return;
+        }
         (async () => {
             try {
                 setStatus('正在发送验证码…', 'pending');
@@ -678,17 +699,18 @@ export function renderAuthStatus(user) {
     const logoutBtn = document.getElementById('authLogoutBtn');
 
     const displayText = user?.nickname || user?.email || user?.phone || '已登录';
+    const adminMode = isAdminUser(user);
     authBar?.classList.remove('guest');
     authBar?.classList.add('logged-in');
     if (label) {
-        label.textContent = '点击修改昵称';
+        label.textContent = adminMode ? '管理员身份' : '点击修改昵称';
         label.classList.remove('hidden');
     }
     if (value) {
         value.textContent = displayText;
-        value.style.cursor = 'pointer';
-        value.title = '点击修改昵称';
-        value.onclick = () => openNicknameEditor(user, displayText);
+        value.style.cursor = adminMode ? 'default' : 'pointer';
+        value.title = adminMode ? '' : '点击修改昵称';
+        value.onclick = adminMode ? null : (() => openNicknameEditor(user, displayText));
     }
     loginBtn?.classList.add('hidden');
     logoutBtn?.classList.remove('hidden');

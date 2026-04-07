@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成绩雷达后台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body class="admin-page-body">
+    <div class="admin-page-shell">
+        <header class="admin-page-header">
+            <div>
+                <div class="admin-page-kicker">成绩雷达 / Admin</div>
+                <h1>隐藏后台</h1>
+                <p>这里只开放给管理员，用来维护暖心文案库。</p>
+            </div>
+            <div class="admin-page-header-actions">
+                <a class="admin-back-link" href="../">返回前台</a>
+                <button type="button" class="btn-small" id="adminLogoutBtn" style="display:none;">退出登录</button>
+            </div>
+        </header>
+
+        <main>
+            <section class="card admin-gate-card" id="adminGateCard">
+                <div class="admin-gate-kicker" id="adminGateKicker">需要管理员登录</div>
+                <h2 class="admin-gate-title" id="adminGateTitle">请输入管理员账号后继续</h2>
+                <p class="admin-gate-desc" id="adminGateDesc">这是一个隐藏页面。只有管理员身份可以进入文案管理后台。</p>
+                <div class="admin-gate-actions">
+                    <button type="button" class="btn btn-primary" id="adminLoginBtn">登录后台</button>
+                </div>
+            </section>
+
+            <section class="card" id="encouragementManagerCard" style="display:none;">
+                <h2 class="card-title">暖心文案管理</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                    当前管理的是“收起考试后右侧详情留白”场景。后续如果新增更多文案场景，也会继续放在这里统一维护。
+                </p>
+                <div class="encouragement-manager-toolbar encouragement-manager-toolbar-sticky">
+                    <div class="encouragement-scene-select-wrap">
+                        <label for="encouragementSceneSelect">文案场景</label>
+                        <select id="encouragementSceneSelect"></select>
+                    </div>
+                    <div class="encouragement-manager-actions">
+                        <button class="btn-small" type="button" id="encouragementManagerRefresh">刷新</button>
+                        <button class="btn-small" type="button" id="encouragementManagerCreate" style="background: linear-gradient(135deg, #e8a87c, #d98f63); color: #fff; border-color: transparent;">新增文案</button>
+                        <button class="btn-small" type="button" id="encouragementManagerSeed" style="background: linear-gradient(135deg, #7cb98b, #8fb7a3); color: #fff; border-color: transparent;">导入默认文案</button>
+                    </div>
+                </div>
+                <div class="encouragement-manager-status" id="encouragementManagerStatus"></div>
+                <div class="encouragement-copy-list" id="encouragementCopyList"></div>
+            </section>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="encouragementEditorModal">
+        <div class="modal encouragement-editor-modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="encouragementFormTitle">新增文案</h3>
+                <button class="modal-close" id="encouragementEditorClose">×</button>
+            </div>
+            <form id="encouragementCopyForm" class="encouragement-copy-form encouragement-copy-form-modal">
+                <input type="hidden" id="encouragementCopyId">
+                <input type="hidden" id="encouragementCopySceneKey">
+                <div class="form-group">
+                    <label for="encouragementCopyTitle">主句</label>
+                    <input type="text" id="encouragementCopyTitle" placeholder="比如：先歇一会儿也没关系。" required>
+                </div>
+                <div class="form-group">
+                    <label for="encouragementCopySubtitle">副句</label>
+                    <textarea id="encouragementCopySubtitle" rows="4" placeholder="比如：你愿意回来继续看时，这里还会安安静静等你。" required></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="encouragementCopyStatus">状态</label>
+                        <select id="encouragementCopyStatus">
+                            <option value="active">启用</option>
+                            <option value="inactive">停用</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="encouragementCopySortOrder">排序值</label>
+                        <input type="number" id="encouragementCopySortOrder" value="10">
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary" id="encouragementCopyCancel" style="flex:1;">取消</button>
+                    <button type="submit" class="btn btn-primary" style="flex:1;">保存到云端文案库</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay confirm-modal" id="confirmModal"><div class="modal"><div class="confirm-icon-wrap danger" id="confirmModalIconWrap"><span id="confirmModalIcon">⚠️</span></div><div class="confirm-title" id="confirmModalTitle">确定删除？</div><div class="confirm-message" id="confirmModalMessage">此操作不可撤销</div><div class="confirm-buttons"><button class="btn confirm-cancel-btn" id="confirmModalCancel">取消</button><button class="btn confirm-ok-btn" id="confirmModalOk">确定</button></div></div></div>
+
+    <script type="module" src="/src/app.js"></script>
+</body>
+</html>
