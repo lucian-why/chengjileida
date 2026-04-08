@@ -1,4 +1,4 @@
-﻿const cloud = require('@cloudbase/node-sdk');
+const cloud = require('@cloudbase/node-sdk');
 
 const app = cloud.init({ env: cloud.SYMBOL_CURRENT_ENV });
 const db = app.database();
@@ -66,7 +66,7 @@ exports.main = async (event = {}) => {
   }
 
   if (!Array.isArray(profileIds) || profileIds.length === 0) {
-    return { code: 400, message: '请提供要删除的 profileIds' };
+    return { code: 400, message: '请提供要恢复的 profileIds' };
   }
 
   try {
@@ -75,27 +75,26 @@ exports.main = async (event = {}) => {
       return current;
     }
 
-    const now = new Date().toISOString();
     const result = await db.collection('cloud_profiles')
       .where({
         userId: current.uid,
         profileId: _.in(profileIds),
-        deleted: _.neq(true)
+        deleted: true
       })
       .update({
-        deleted: true,
-        deletedAt: now
+        deleted: false,
+        deletedAt: null
       });
 
     return {
       code: 0,
-      message: '云端档案已移至回收站',
+      message: '档案恢复成功',
       data: {
         count: result.updated || result.stats?.updated || profileIds.length
       }
     };
   } catch (error) {
-    console.error('[deleteCloudProfiles] error:', error);
-    return { code: 500, message: '删除云端档案失败：' + (error.message || '未知错误') };
+    console.error('[restoreCloudProfiles] error:', error);
+    return { code: 500, message: '恢复档案失败：' + (error.message || '未知错误') };
   }
 };

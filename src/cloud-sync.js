@@ -57,7 +57,9 @@ function toCloudSummary(row = {}) {
         examCount: row.examCount || row.exam_count || 0,
         dataSize: row.dataSize || row.data_size || 0,
         lastSyncAt: row.lastSyncAt || row.last_sync_at || row.updated_at || row.created_at || null,
-        bundle: row.bundle || row.profileData || row.profile_data || null
+        bundle: row.bundle || row.profileData || row.profile_data || null,
+        deleted: row.deleted || false,
+        deletedAt: row.deletedAt || row.deleted_at || null
     };
 }
 
@@ -137,6 +139,39 @@ export async function deleteCloudProfiles(profileIds = []) {
         userEmail: user.email || ''
     }, '删除云端档案失败');
     return data?.count || data?.deletedCount || profileIds.length;
+}
+
+export async function listDeletedProfiles() {
+    const user = await ensureCloudReady();
+    const data = await callSyncFunction('listCloudProfiles', {
+        userId: user.id || '',
+        userEmail: user.email || '',
+        showDeleted: true
+    }, '获取已删除档案失败');
+    const rows = Array.isArray(data) ? data : (data?.profiles || data?.list || []);
+    return rows.filter(r => r.deleted).map(toCloudSummary);
+}
+
+export async function restoreCloudProfiles(profileIds = []) {
+    if (!profileIds.length) return 0;
+    const user = await ensureCloudReady();
+    const data = await callSyncFunction('restoreCloudProfiles', {
+        profileIds,
+        userId: user.id || '',
+        userEmail: user.email || ''
+    }, '恢复云端档案失败');
+    return data?.count || profileIds.length;
+}
+
+export async function purgeDeletedProfiles(profileIds = []) {
+    if (!profileIds.length) return 0;
+    const user = await ensureCloudReady();
+    const data = await callSyncFunction('purgeDeletedProfiles', {
+        profileIds,
+        userId: user.id || '',
+        userEmail: user.email || ''
+    }, '彻底删除云端档案失败');
+    return data?.count || data?.purgedCount || profileIds.length;
 }
 
 export function compareProfiles(localProfiles = getAllLocalProfileBundles(), cloudProfiles = []) {

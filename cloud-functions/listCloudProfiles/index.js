@@ -3,6 +3,7 @@
 const app = cloud.init({ env: cloud.SYMBOL_CURRENT_ENV });
 const db = app.database();
 const auth = app.auth();
+const _ = db.command;
 
 function parseEventPayload(event = {}) {
   if (!event || typeof event !== 'object') return {};
@@ -35,6 +36,16 @@ async function getCurrentUser(event = {}) {
     return { code: 0, uid: explicitUid, userInfo: { uid: explicitUid } };
   }
 
+  const explicitEmail = String(payload.userEmail || payload.email || '').trim().toLowerCase();
+  if (explicitEmail) {
+    const matchedUser = await db.collection('users').where({ email: explicitEmail }).limit(1).get();
+    const user = matchedUser.data && matchedUser.data[0];
+    if (user && user._id) {
+      const uid = typeof user._id === 'string' ? user._id : user._id.toString();
+      return { code: 0, uid, userInfo: { uid, email: explicitEmail } };
+    }
+  }
+
   const userInfo = await auth.getUserInfo();
   const uid = userInfo?.uid || userInfo?.openId || userInfo?.customUserId || '';
   if (!uid) {
@@ -50,8 +61,18 @@ exports.main = async (event = {}) => {
       return current;
     }
 
+    const payload = parseEventPayload(event);
+    const showDeleted = payload.showDeleted === true || payload.showDeleted === 'true';
+
+    const whereCondition = { userId: current.uid };
+    if (showDeleted) {
+      whereCondition.deleted = true;
+    } else {
+      whereCondition.deleted = _.neq(true);
+    }
+
     const result = await db.collection('cloud_profiles')
-      .where({ userId: current.uid })
+      .where(whereCondition)
       .orderBy('updatedAt', 'desc')
       .limit(200)
       .get();
@@ -64,7 +85,9 @@ exports.main = async (event = {}) => {
       dataSize: item.dataSize || 0,
       lastSyncAt: item.lastSyncAt || item.updatedAt || item.createdAt || null,
       createdAt: item.createdAt || null,
-      updatedAt: item.updatedAt || null
+      updatedAt: item.updatedAt || null,
+      deleted: item.deleted || false,
+      deletedAt: item.deletedAt || null
     }));
 
     return { code: 0, data: profiles };

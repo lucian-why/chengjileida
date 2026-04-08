@@ -126,7 +126,23 @@ export async function getCurrentUser() {
     if (adminUser) return adminUser;
     if (!isAuthEnabled()) return null;
     const user = await getTCBCurrentUser();
-    return isValidUserShape(user) ? user : null;
+    if (!isValidUserShape(user)) return null;
+
+    if (!user.id && isBrowser()) {
+        const storedId = localStorage.getItem(USER_ID_KEY) || '';
+        const storedEmail = localStorage.getItem(USER_EMAIL_KEY) || '';
+        const hydratedUser = {
+            ...user,
+            id: storedId || user.id || '',
+            email: user.email || storedEmail || ''
+        };
+        if (isValidUserShape(hydratedUser)) {
+            saveAuthSession({ user: hydratedUser });
+            return hydratedUser;
+        }
+    }
+
+    return user;
 }
 
 export function isAdminUser(user) {

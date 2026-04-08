@@ -35,6 +35,16 @@ async function getCurrentUser(event = {}) {
     return { code: 0, uid: explicitUid, userInfo: { uid: explicitUid } };
   }
 
+  const explicitEmail = String(payload.userEmail || payload.email || '').trim().toLowerCase();
+  if (explicitEmail) {
+    const matchedUser = await db.collection('users').where({ email: explicitEmail }).limit(1).get();
+    const user = matchedUser.data && matchedUser.data[0];
+    if (user && user._id) {
+      const uid = typeof user._id === 'string' ? user._id : user._id.toString();
+      return { code: 0, uid, userInfo: { uid, email: explicitEmail } };
+    }
+  }
+
   const userInfo = await auth.getUserInfo();
   const uid = userInfo?.uid || userInfo?.openId || userInfo?.customUserId || '';
   if (!uid) {

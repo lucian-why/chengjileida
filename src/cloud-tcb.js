@@ -246,6 +246,10 @@ async function callHttpFunction(name, data = {}) {
         throw new Error('当前环境不支持 HTTP 云函数调用');
     }
 
+    const httpPathMap = {
+        restoreCloudProfiles: 'restoreDeletedProfiles'
+    };
+
     const queryModeFunctions = new Set([
         'sendEmailCode',
         'emailLogin',
@@ -260,7 +264,7 @@ async function callHttpFunction(name, data = {}) {
         'getCloudProfileData'
     ]);
 
-    const endpoint = new URL(`${HTTP_SERVICE_BASE}/${name}`);
+    const endpoint = new URL(`${HTTP_SERVICE_BASE}/${httpPathMap[name] || name}`);
     const requestInit = { method: 'POST', headers: {} };
 
     if (queryModeFunctions.has(name)) {

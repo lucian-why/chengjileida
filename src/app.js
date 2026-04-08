@@ -1,7 +1,7 @@
 ﻿import state from './store.js';
 import { migrateProfilesIfNeeded, getExams, getExamsAll, saveExams, getActiveProfileId } from './storage.js';
 import { initSupabase, isAuthEnabled, getCurrentUser, onAuthStateChange, signOut } from './auth.js';
-import { showLoginPage, hideLoginPage, renderAuthStatus, renderGuestAuthStatus, clearAuthStatus, setLoginSuccessHandler, setLogoutHandler } from './login-ui.js';
+import { showLoginPage, hideLoginPage, renderAuthStatus, renderGuestAuthStatus, clearAuthStatus, setLoginSuccessHandler, setLogoutHandler, setAuthSyncStatus } from './login-ui.js';
 import { showConfirmDialog, showToast } from './modal.js';
 import { setUpdateTrendChart, updateScoreMax } from './utils.js';
 import { renderExamList, selectExam, selectSubject, setDependencies as setExamListDeps } from './exam-list.js';
@@ -18,6 +18,7 @@ import { openCloudSyncPanel, closeCloudSyncPanel, setDependencies as setCloudSyn
 import { ENCOURAGEMENT_SCENES, leaveEncouragementScene, restoreActiveEncouragementScene } from './encouragement-copy.js';
 import { startAdminApp } from './admin-app.js';
 import { initAI, scheduleAIAnalysisRefresh, refreshAIAnalysisCard } from './ai.js';
+import { initAutoSync, syncAfterLogin, handleLogoutAutoSync, getAutoSyncStatusText } from './auto-sync.js';
 
 let appEventsBound = false;
 let appCoreReady = false;
@@ -208,10 +209,10 @@ function bindAppEvents() {
         const user = isAuthEnabled() ? await getCurrentUser() : null;
         if (!user) {
             showConfirmDialog({
-                icon: '☁️',
+                icon: '🗑️',
                 iconType: 'info',
-                title: '云端同步需要登录',
-                message: '登录后即可把本地档案备份到云端，或从云端恢复成绩数据。',
+                title: '回收站需要登录',
+                message: '登录后可查看和管理已删除的云端档案。',
                 okText: '去登录',
                 okClass: 'confirm-ok-btn blue',
                 onConfirm: async () => {
@@ -259,7 +260,9 @@ async function initCoreApp() {
 async function handleSignedIn(user) {
     hideLoginPage();
     renderAuthStatus(user);
+    setAuthSyncStatus(getAutoSyncStatusText(), 'info', true);
     await initCoreApp();
+    await syncAfterLogin();
 
     if (pendingPostLoginAction === 'cloud-sync') {
         pendingPostLoginAction = '';
@@ -274,6 +277,7 @@ function setupAuthHandlers() {
         renderGuestAuthStatus();
         closeCloudSyncPanel();
         hideLoginPage();
+        handleLogoutAutoSync();
         await refreshAIAnalysisCard({ force: true });
         showToast({ icon: '👋', title: '已退出登录', message: '网页仍可继续使用，云端同步功能需要重新登录。' });
     });
@@ -285,6 +289,7 @@ function setupAuthHandlers() {
             renderGuestAuthStatus();
             closeCloudSyncPanel();
             hideLoginPage();
+            handleLogoutAutoSync();
             await refreshAIAnalysisCard({ force: true });
             return;
         }
@@ -310,6 +315,10 @@ async function startApp() {
     }
 
     initSupabase();
+    initAutoSync({
+        refreshAll,
+        onStatusChange: ({ message, type, visible }) => setAuthSyncStatus(message, type, visible)
+    });
 
     await initCoreApp();
     const user = await getCurrentUser();
@@ -324,6 +333,7 @@ async function startApp() {
         } else {
             renderGuestAuthStatus();
             hideLoginPage();
+            handleLogoutAutoSync();
         }
         return;
     }

@@ -175,6 +175,7 @@ function ensureLoginUi() {
             <div class="auth-status-main">
                 <span class="auth-status-label" id="authStatusLabel">云端账户</span>
                 <span class="auth-status-value" id="authStatusValue">未登录</span>
+                <span class="auth-sync-status hidden" id="authSyncStatus"></span>
             </div>
             <button type="button" id="authLoginBtn" class="auth-login-btn hidden">登录</button>
             <button type="button" id="authLogoutBtn" class="auth-logout-btn">退出</button>
@@ -767,6 +768,7 @@ export function renderGuestAuthStatus() {
     loginBtn?.classList.remove('hidden');
     logoutBtn?.classList.add('hidden');
     authBar?.classList.remove('hidden');
+    setAuthSyncStatus('', '', false);
 }
 
 /** 打开昵称编辑弹窗 */
@@ -857,4 +859,17 @@ export function clearAuthStatus() {
     loginBtn?.classList.add('hidden');
     logoutBtn?.classList.remove('hidden');
     authBar?.classList.add('hidden');
+    setAuthSyncStatus('', '', false);
+}
+
+export function setAuthSyncStatus(message = '', type = '', visible = true) {
+    const syncStatus = document.getElementById('authSyncStatus');
+    if (!syncStatus) return;
+    syncStatus.textContent = message;
+    syncStatus.dataset.type = type;
+    if (!visible || !message) {
+        syncStatus.classList.add('hidden');
+        return;
+    }
+    syncStatus.classList.remove('hidden');
 }

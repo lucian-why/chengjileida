@@ -6,6 +6,42 @@ const EXAMS_KEY = 'xueji_exams';
 const PROFILES_KEY = 'xueji_profiles';
 const ACTIVE_PROFILE_KEY = 'xueji_active_profile';
 const FORM_MEMORY_KEY = 'xueji_form_memory';
+let storageChangeHandler = null;
+let storageChangeSuppressed = null;
+
+function notifyStorageChanged(change = {}) {
+    const suppressed = typeof storageChangeSuppressed === 'function' ? storageChangeSuppressed() : false;
+    if (suppressed) return;
+    if (typeof storageChangeHandler === 'function') {
+        storageChangeHandler(change);
+    }
+}
+
+export function setStorageSyncHooks({ onChange = null, isSuppressed = null } = {}) {
+    storageChangeHandler = typeof onChange === 'function' ? onChange : null;
+    storageChangeSuppressed = typeof isSuppressed === 'function' ? isSuppressed : null;
+}
+
+function persistProfiles(profiles, options = {}) {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    if (!options.silent) {
+        notifyStorageChanged({ type: 'profiles', profileIds: Array.isArray(profiles) ? profiles.map((item) => item.id).filter(Boolean) : [] });
+    }
+}
+
+function persistExams(exams, options = {}) {
+    localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
+    if (!options.silent) {
+        notifyStorageChanged({ type: 'exams' });
+    }
+}
+
+function persistFormMemory(memory, options = {}) {
+    localStorage.setItem(FORM_MEMORY_KEY, JSON.stringify(memory));
+    if (!options.silent) {
+        notifyStorageChanged({ type: 'form-memory' });
+    }
+}
 
 function normalizeProfiles(rawProfiles = []) {
     let changed = false;
@@ -41,7 +77,7 @@ function getProfiles() {
 }
 
 function saveProfiles(profiles) {
-    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    persistProfiles(profiles);
 }
 
 function getActiveProfileId() {
@@ -76,20 +112,22 @@ function updateProfile(id, name) {
 function deleteProfile(id) {
     let profiles = getProfiles();
     profiles = profiles.filter(profile => profile.id !== id);
-    saveProfiles(profiles);
+    persistProfiles(profiles, { silent: true });
 
     const exams = getExamsAll().filter(exam => exam.profileId !== id);
-    saveExams(exams);
+    persistExams(exams, { silent: true });
 
     const memory = getFormMemoryAll();
     if (memory[id]) {
         delete memory[id];
-        saveFormMemoryAll(memory);
+        persistFormMemory(memory, { silent: true });
     }
 
     if (getActiveProfileId() === id && profiles.length > 0) {
         setActiveProfileId(profiles[0].id);
     }
+
+    notifyStorageChanged({ type: 'profile-delete', profileId: id });
 }
 
 function migrateProfilesIfNeeded() {
@@ -127,7 +165,7 @@ function getExamsAll() {
 }
 
 function saveExams(exams) {
-    localStorage.setItem(EXAMS_KEY, JSON.stringify(exams));
+    persistExams(exams);
 }
 
 function getFormMemoryAll() {
@@ -136,7 +174,7 @@ function getFormMemoryAll() {
 }
 
 function saveFormMemoryAll(memory) {
-    localStorage.setItem(FORM_MEMORY_KEY, JSON.stringify(memory));
+    persistFormMemory(memory);
 }
 
 function getProfileMemory(profileId) {
@@ -144,13 +182,17 @@ function getProfileMemory(profileId) {
     return memory[profileId] || { examDefaults: {}, subjectFullScores: {} };
 }
 
-function setProfileMemory(profileId, profileMemory) {
+function setProfileMemory(profileId, profileMemory, options = {}) {
     if (!profileId) return;
     const memory = getFormMemoryAll();
     memory[profileId] = {
         examDefaults: profileMemory?.examDefaults || {},
         subjectFullScores: profileMemory?.subjectFullScores || {}
     };
+    if (options.silent) {
+        persistFormMemory(memory, { silent: true });
+        return;
+    }
     saveFormMemoryAll(memory);
 }
 
@@ -281,9 +323,9 @@ function applyCloudProfileBundle(cloudBundle) {
         incomingExams
     );
 
-    saveProfiles(localProfiles);
-    saveExams(otherExams.concat(mergedProfileExams));
-    setProfileMemory(incomingProfile.id, payload.formMemory || {});
+    persistProfiles(localProfiles, { silent: true });
+    persistExams(otherExams.concat(mergedProfileExams), { silent: true });
+    setProfileMemory(incomingProfile.id, payload.formMemory || {}, { silent: true });
 }
 
 export {
