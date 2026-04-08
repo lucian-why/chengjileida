@@ -150,6 +150,10 @@ export function getTCBEnvId() {
     return ENV_ID;
 }
 
+export function getTCBServiceBase() {
+    return HTTP_SERVICE_BASE;
+}
+
 
 // ===== 存储层 =====
 

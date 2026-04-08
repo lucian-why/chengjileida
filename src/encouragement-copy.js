@@ -1,5 +1,5 @@
 import state from './store.js';
-import { callFunction } from './cloud-tcb.js';
+import { getTCBServiceBase } from './cloud-tcb.js';
 import { showConfirmDialog, showToast } from './modal.js';
 import { getAdminAccessToken } from './auth.js';
 
@@ -30,6 +30,7 @@ const LOCAL_FALLBACK_COPIES = {
 let managerBound = false;
 let managerSceneKey = ENCOURAGEMENT_SCENES.EXAM_DETAIL_COLLAPSED_EMPTY;
 let managerCopies = [];
+const ENCOURAGEMENT_HTTP_BASE = getTCBServiceBase();
 
 function isBrowser() {
     return typeof window !== 'undefined';
@@ -105,7 +106,7 @@ function normalizeCopy(raw, sceneKey) {
 }
 
 async function fetchCopyFromCloud(sceneKey, context = {}, excludeId = '') {
-    const payload = await callFunction('getEncouragementCopy', { sceneKey, context, excludeId });
+    const payload = await callEncouragementHttp('getEncouragementCopy', { sceneKey, excludeId });
     if (payload?.code !== 0 || !payload?.data) {
         throw new Error(payload?.message || '读取暖心文案失败');
     }
@@ -294,7 +295,7 @@ function fillManagerForm(copy) {
 }
 
 async function callManageCopies(action, extra = {}) {
-    const payload = await callFunction('manageEncouragementCopies', {
+    const payload = await callEncouragementHttp('manageEncouragementCopies', {
         action,
         adminAccessToken: getAdminAccessToken(),
         ...extra
@@ -303,6 +304,34 @@ async function callManageCopies(action, extra = {}) {
         throw new Error(payload?.message || '文案库操作失败');
     }
     return payload.data;
+}
+
+async function callEncouragementHttp(name, params = {}) {
+    if (!isBrowser() || typeof fetch !== 'function') {
+        throw new Error('当前环境不支持暖心文案接口调用');
+    }
+
+    const endpoint = new URL(`${ENCOURAGEMENT_HTTP_BASE}/${name}`);
+    Object.entries(params || {}).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return;
+        endpoint.searchParams.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+    });
+
+    const response = await fetch(endpoint.toString(), { method: 'GET' });
+    const text = await response.text();
+
+    let payload = null;
+    try {
+        payload = text ? JSON.parse(text) : null;
+    } catch {
+        throw new Error(text || '暖心文案接口返回了无法解析的内容');
+    }
+
+    if (!response.ok && !payload) {
+        throw new Error(`HTTP ${response.status}`);
+    }
+
+    return payload;
 }
 
 async function loadManagerCopies(sceneKey = getSelectedSceneKey()) {

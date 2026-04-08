@@ -176,6 +176,9 @@ function assertAdmin(event = {}) {
 
 exports.main = async (event = {}) => {
   const payload = parseEventPayload(event);
+  if (typeof payload.copy === 'string') {
+    try { payload.copy = JSON.parse(payload.copy); } catch {}
+  }
   const action = String(payload.action || '').trim();
 
   try {
