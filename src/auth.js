@@ -30,7 +30,8 @@ import {
     phonePasswordLogin as tcbPhonePasswordLogin,
     phoneRegister as tcbPhoneRegister,
     phoneResetPassword as tcbPhoneResetPassword,
-    updateNickname as tcbUpdateNickname
+    updateNickname as tcbUpdateNickname,
+    refreshUser as tcbRefreshUser
 } from './cloud-tcb.js';
 
 let initialized = false;
@@ -310,4 +311,17 @@ export function onAuthStateChange(callback) {
     if (typeof callback !== 'function') return () => {};
     listeners.add(callback);
     return () => listeners.delete(callback);
+}
+
+/**
+ * 从云端刷新当前用户信息（包括 VIP 状态）
+ * 确保多端 VIP 状态同步
+ */
+export async function refreshUser() {
+    if (!isAuthEnabled()) return null;
+    const user = await tcbRefreshUser();
+    if (user) {
+        emitAuthChange('USER_UPDATED', { user });
+    }
+    return user;
 }

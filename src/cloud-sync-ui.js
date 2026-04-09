@@ -1,6 +1,7 @@
 ﻿import { getCurrentUser, isAuthEnabled } from './auth.js';
-import { showConfirmDialog } from './modal.js';
+import { showConfirmDialog, showToast } from './modal.js';
 import { listDeletedProfiles, restoreCloudProfiles, purgeDeletedProfiles } from './cloud-sync.js';
+import { checkLimit as checkVipLimit } from './vip.js';
 
 let _refreshAll = null;
 let _ensureCloudAuth = null;
@@ -192,6 +193,18 @@ async function renderCloudSyncContent() {
 }
 
 async function handleRestore(profileIds) {
+    // VIP 限制检查
+    const restoreCheck = checkVipLimit('recycleBinRestore');
+    if (!restoreCheck.allowed) {
+        showToast({
+            icon: '🔒',
+            iconType: 'warning',
+            title: '恢复需要 VIP',
+            message: restoreCheck.reason
+        });
+        return;
+    }
+
     _loading = true;
     setStatus('正在恢复档案…', 'pending');
     try {

@@ -1,6 +1,7 @@
 ﻿import state from './store.js';
 import { getProfiles, getActiveProfileId, setActiveProfileId, createProfile, updateProfile, deleteProfile, getExams } from './storage.js';
-import { showConfirmDialog } from './modal.js';
+import { showConfirmDialog, showToast } from './modal.js';
+import { checkLimit as checkVipLimit } from './vip.js';
 
 let _refreshAll = null;
 let _profileSwitcherBound = false;
@@ -201,6 +202,19 @@ export function confirmDeleteProfile(index) {
 }
 
 export function addNewProfile() {
+    // 档案数量限制
+    const currentProfiles = getProfiles();
+    const profileCheck = checkVipLimit('profileCount', currentProfiles.length);
+    if (!profileCheck.allowed) {
+        showToast({
+            icon: '🔒',
+            iconType: 'warning',
+            title: '档案数量已达上限',
+            message: profileCheck.reason
+        });
+        return;
+    }
+
     const area = document.getElementById('addProfileArea');
     area.innerHTML = `
         <div class="profile-inline-input">

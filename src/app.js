@@ -18,6 +18,8 @@ import { openCloudSyncPanel, closeCloudSyncPanel, setDependencies as setCloudSyn
 import { ENCOURAGEMENT_SCENES, leaveEncouragementScene, restoreActiveEncouragementScene } from './encouragement-copy.js';
 import { startAdminApp } from './admin-app.js';
 import { initAI, scheduleAIAnalysisRefresh, refreshAIAnalysisCard } from './ai.js';
+import { initAIChat, openAIChat, closeAIChat, renderReportEntry, renderCompareEntry, renderGlobalEntry, setLastAnalysisText } from './ai-chat.js';
+import { initVipUI, renderVipStatus } from './vip-ui.js';
 import { initAutoSync, syncAfterLogin, handleLogoutAutoSync, getAutoSyncStatusText } from './auto-sync.js';
 
 let appEventsBound = false;
@@ -152,6 +154,8 @@ function bindWindowGlobals() {
     window.openChartZoom = openChartZoom;
     window.closeChartZoom = closeChartZoom;
     window.closeCloudSyncPanel = closeCloudSyncPanel;
+    window.openAIChat = openAIChat;
+    window.closeAIChat = closeAIChat;
 }
 
 function bindAppEvents() {
@@ -189,6 +193,7 @@ function bindAppEvents() {
 
             if (this.dataset.tab === 'settings') {
                 renderProfileManager();
+                renderVipStatus();
             }
         });
     });
@@ -234,6 +239,10 @@ function bindAppEvents() {
         setupDemoBtn();
         setupReportEvents();
         initAI();
+        initAIChat();
+        initVipUI();
+        renderCompareEntry();
+        renderGlobalEntry();
 
     document.getElementById('chartZoomOverlay')?.addEventListener('click', function(event) {
         if (event.target === this) closeChartZoom();

@@ -26,6 +26,7 @@
  */
 
 const ENV_ID = import.meta.env.VITE_TCB_ENV_ID || 'chengjiguanjia-1g1twvrkd736c880';
+const ACCESS_KEY = import.meta.env.VITE_TCB_ACCESS_KEY || '';
 const HTTP_SERVICE_BASE = import.meta.env.VITE_TCB_SERVICE_BASE || `https://${ENV_ID}.service.tcloudbase.com`;
 const TOKEN_KEY = 'tcb_token';
 const USER_KEY = 'tcb_user';
@@ -35,6 +36,9 @@ const USER_EMAIL_KEY = 'tcb_user_email';
 let appInstance = null;
 let authInstance = null;
 let tcbModulePromise = null;
+
+const AI_PROVIDER = 'hunyuan-exp';
+const AI_MODEL = 'hunyuan-turbos-latest';
 
 function isBrowser() {
     return typeof window !== 'undefined';
@@ -118,7 +122,9 @@ function mapCloudUser(data) {
         nickname: user.nickname || (user.email ? user.email.split('@')[0] : (user.phone || '云端用户')),
         avatarUrl: user.avatarUrl || null,
         hasWeixin: !!user.hasWeixin,
-        hasPhone: !!user.hasPhone
+        hasPhone: !!user.hasPhone,
+        role: user.role || '',
+        vipExpireAt: user.vipExpireAt || user.vip_expire_at || null
     };
 }
 
@@ -129,10 +135,14 @@ export async function initTCB() {
     if (appInstance) return appInstance;
     const cloudbase = await loadCloudbaseModule();
     const sdk = cloudbase.default || cloudbase;
-    appInstance = sdk.init({
+    const initOptions = {
         env: ENV_ID,
         persistence: 'local'
-    });
+    };
+    if (ACCESS_KEY) {
+        initOptions.accessKey = ACCESS_KEY;
+    }
+    appInstance = sdk.init(initOptions);
     return appInstance;
 }
 
@@ -810,6 +820,38 @@ export async function verifyToken() {
     return localUser;
 }
 
+/**
+ * 从云端刷新当前用户信息（包括 VIP 状态）
+ * 在页面加载或需要同步 VIP 状态时调用
+ */
+export async function refreshUser() {
+    const localUser = getStoredUser();
+    if (!localUser?.id) return null;
+
+    try {
+        const result = await callFunction('verifyToken', { token: getStoredToken() });
+        if (!result || result.code !== 0 || !result.data) {
+            return localUser;
+        }
+
+        const cloudData = result.data.user || result.data;
+        // 同步云端 VIP 字段到本地用户对象
+        if (cloudData.role) localUser.role = cloudData.role;
+        if (cloudData.vipExpireAt || cloudData.vip_expire_at) {
+            localUser.vipExpireAt = cloudData.vipExpireAt || cloudData.vip_expire_at;
+        }
+        if (cloudData.nickname) localUser.nickname = cloudData.nickname;
+        if (cloudData.email) localUser.email = cloudData.email;
+        if (cloudData.avatarUrl) localUser.avatarUrl = cloudData.avatarUrl;
+
+        saveAuthSession({ user: localUser });
+        return localUser;
+    } catch (error) {
+        console.warn('[cloud-tcb] refreshUser failed:', error);
+        return localUser;
+    }
+}
+
 export async function getCurrentUser() {
     const localUser = getStoredUser();
     if (localUser) return localUser;
@@ -832,6 +874,68 @@ export function getCurrentUserId() {
 
 export function getCurrentUserEmail() {
     return isBrowser() ? localStorage.getItem(USER_EMAIL_KEY) || '' : '';
+}
+
+
+// ===== AI 直连能力（前端 SDK 调用，不需要云函数中转） =====
+
+/**
+ * 获取 CloudBase AI 实例
+ * 前端直连 AI，支持 streamText 流式输出
+ * 需要在 .env 中配置 VITE_TCB_ACCESS_KEY
+ */
+export async function getAIInstance() {
+    const app = await initTCB();
+    return app.ai();
+}
+
+/**
+ * 流式文本生成 — 前端直连 CloudBase AI
+ * @param {Array<{role: string, content: string}>} messages - 对话消息
+ * @param {object} [options] - 可选参数
+ * @param {number} [options.temperature=0.6] - 采样温度
+ * @param {number} [options.maxTokens=600] - 最大生成 token 数
+ * @returns {Promise<{textStream: AsyncIterable<string>, dataStream: AsyncIterable, messages: Promise, usage: Promise}>}
+ */
+export async function streamText(messages, options = {}) {
+    const ai = await getAIInstance();
+    const model = ai.createModel(AI_PROVIDER);
+
+    return model.streamText({
+        model: AI_MODEL,
+        messages,
+        temperature: options.temperature ?? 0.6,
+        maxTokens: options.maxTokens ?? 600
+    });
+}
+
+/**
+ * 非流式文本生成 — 前端直连 CloudBase AI
+ * @param {Array<{role: string, content: string}>} messages - 对话消息
+ * @param {object} [options] - 可选参数
+ * @param {number} [options.temperature=0.4] - 采样温度
+ * @param {number} [options.maxTokens=900] - 最大生成 token 数
+ * @returns {Promise<string>} 生成的文本
+ */
+export async function generateText(messages, options = {}) {
+    const ai = await getAIInstance();
+    const model = ai.createModel(AI_PROVIDER);
+
+    const result = await model.generateText({
+        model: AI_MODEL,
+        messages,
+        temperature: options.temperature ?? 0.4,
+        maxTokens: options.maxTokens ?? 900
+    });
+
+    if (result?.error) {
+        const errorMessage = typeof result.error === 'string'
+            ? result.error
+            : (result.error?.message || JSON.stringify(result.error));
+        throw new Error(errorMessage || 'CloudBase AI 调用失败');
+    }
+
+    return result?.text || '';
 }
 
 

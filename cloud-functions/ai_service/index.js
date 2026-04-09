@@ -1,6 +1,7 @@
 const tcb = require('@cloudbase/node-sdk');
 const { analyzePrompt } = require('./prompts/analyze');
 const { inputParsePrompt } = require('./prompts/inputParse');
+const { chatPrompt } = require('./prompts/chat');
 
 const app = tcb.init({
   env: process.env.CLOUDBASE_ENV_ID || tcb.SYMBOL_CURRENT_ENV,
@@ -33,6 +34,10 @@ exports.main = async (event = {}) => {
 
     if (action === 'inputParse') {
       return await handleInputParse(data);
+    }
+
+    if (action === 'chat') {
+      return await handleChat(data);
     }
 
     return { code: 400, message: '不支持的 AI action' };
@@ -436,4 +441,45 @@ function escapeRegExp(text) {
 function mergeWithExistingContext(parsed, subjectContext = []) {
   if (!subjectContext.length) return parsed;
   return parsed;
+}
+
+async function handleChat(data = {}) {
+  const rawMessages = Array.isArray(data.messages) ? data.messages : [];
+
+  if (rawMessages.length === 0) {
+    return { code: 400, message: '对话消息不能为空' };
+  }
+
+  // 限制消息数量，防止 token 爆炸
+  const messages = rawMessages.slice(-42).map(msg => ({
+    role: String(msg.role || 'user').trim(),
+    content: String(msg.content || '').trim()
+  })).filter(msg => msg.content && ['system', 'user', 'assistant'].includes(msg.role));
+
+  // 如果第一条不是 system，插入默认 system prompt
+  if (messages.length === 0 || messages[0].role !== 'system') {
+    messages.unshift({ role: 'system', content: chatPrompt });
+  }
+
+  try {
+    const text = await generateWithAI(messages, { temperature: 0.6, maxTokens: 600 });
+
+    if (!String(text || '').trim()) {
+      throw new Error('AI 没有返回有效内容');
+    }
+
+    return {
+      code: 0,
+      data: {
+        text: String(text).trim(),
+        source: AI_API_KEY && AI_BASE_URL ? 'custom-openai-compatible' : 'cloudbase-ai'
+      }
+    };
+  } catch (error) {
+    console.error('[ai_service] chat error:', error);
+    return {
+      code: 500,
+      message: normalizeAIError(error) || 'AI 对话暂时不可用，请稍后再试'
+    };
+  }
 }

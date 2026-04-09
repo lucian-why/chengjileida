@@ -49,7 +49,9 @@ exports.main = async (event, context) => {
         hasPhone: !!user.phone,
         lastLoginMethod: user.lastLoginMethod || null,
         createdAt: user.createdAt,
-        profileCount: user.profileCount || 0
+        profileCount: user.profileCount || 0,
+        role: user.role || '',
+        vipExpireAt: user.vipExpireAt || null
       }
     };
 

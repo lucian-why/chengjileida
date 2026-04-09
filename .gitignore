@@ -1,21 +1,11 @@
-# Dependencies
 node_modules/
+dist/
 
-# Environment (contains secrets!)
+# Environment
+.env
 .env.local
 .env.*
 
-# Build output
-dist/
-
-# Debug / test / temp files
-_gen.js
-debug-*
-diag.*
-inject-diag*
-serve-diag*
-serve-dist*
-serve-test*
-test-*
-test-results/
+# Local debug logs
 *.log
+vite-local*.log

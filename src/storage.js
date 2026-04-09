@@ -60,7 +60,15 @@ function normalizeProfiles(rawProfiles = []) {
             changed = true;
         }
 
-        return { id, name, createdAt };
+        const isDemo = source.isDemo === true;
+
+        if (source.id !== id || source.name !== name || source.createdAt !== createdAt || source.isDemo !== isDemo || source.profileId || source.profile_id || source.profileName || source.profile_name || source.created_at) {
+            changed = true;
+        }
+
+        const result = { id, name, createdAt };
+        if (isDemo) result.isDemo = true;
+        return result;
     });
 
     return { normalized, changed };
@@ -92,10 +100,12 @@ function setActiveProfileId(id) {
     localStorage.setItem(ACTIVE_PROFILE_KEY, id);
 }
 
-function createProfile(name) {
+function createProfile(name, options = {}) {
     const profiles = getProfiles();
     const id = 'profile_' + Date.now();
-    profiles.push({ id, name, createdAt: new Date().toISOString() });
+    const profile = { id, name, createdAt: new Date().toISOString() };
+    if (options.isDemo) profile.isDemo = true;
+    profiles.push(profile);
     saveProfiles(profiles);
     return id;
 }
@@ -136,11 +146,13 @@ function migrateProfilesIfNeeded() {
         if (!localStorage.getItem(ACTIVE_PROFILE_KEY) && profiles[0]) {
             setActiveProfileId(profiles[0].id);
         }
+        // 清理重复的 demo 档案：只保留第一个 isDemo 的
+        deduplicateDemoProfiles(profiles);
         return;
     }
 
     const exams = getExamsAll();
-    const defaultId = createProfile('人生档案');
+    const defaultId = createProfile('人生档案', { isDemo: true });
     setActiveProfileId(defaultId);
 
     if (exams.length === 0) return;
@@ -149,6 +161,70 @@ function migrateProfilesIfNeeded() {
         exam.profileId = defaultId;
     });
     saveExams(exams);
+}
+
+/**
+ * 去重 demo 档案：只保留第一个 isDemo 档案，多余的删除
+ * 同时处理历史遗留的无 isDemo 标记但名称为"人生档案"且只含 demo 考试的档案
+ */
+function deduplicateDemoProfiles(profiles) {
+    const allExams = getExamsAll();
+    let changed = false;
+    const toDelete = [];
+
+    // 标记历史遗留的 demo 档案（名字为"人生档案"且只有 demo_ 开头的考试）
+    profiles.forEach(profile => {
+        if (profile.isDemo) return;
+        if (profile.name !== '人生档案') return;
+        const profileExams = allExams.filter(exam => exam.profileId === profile.id);
+        if (profileExams.length === 0) {
+            // 空的人生档案，标记为 demo
+            profile.isDemo = true;
+            changed = true;
+            return;
+        }
+        const allDemo = profileExams.every(exam => String(exam.id || '').startsWith('demo_'));
+        if (allDemo) {
+            profile.isDemo = true;
+            changed = true;
+        }
+    });
+
+    // 去重：只保留第一个 isDemo 档案
+    let firstDemoFound = false;
+    profiles.forEach(profile => {
+        if (!profile.isDemo) return;
+        if (!firstDemoFound) {
+            firstDemoFound = true;
+            return;
+        }
+        toDelete.push(profile.id);
+    });
+
+    if (toDelete.length > 0) {
+        const remaining = profiles.filter(p => !toDelete.includes(p.id));
+        persistProfiles(remaining, { silent: true });
+
+        // 清理被删除档案的考试数据
+        const remainingExams = allExams.filter(exam => !toDelete.includes(exam.profileId));
+        persistExams(remainingExams, { silent: true });
+
+        // 清理 form memory
+        const memory = getFormMemoryAll();
+        toDelete.forEach(id => delete memory[id]);
+        persistFormMemory(memory, { silent: true });
+
+        // 如果当前活跃档案被删了，切换到第一个
+        const activeId = getActiveProfileId();
+        if (toDelete.includes(activeId) && remaining.length > 0) {
+            setActiveProfileId(remaining[0].id);
+        }
+        changed = true;
+    }
+
+    if (changed && !toDelete.length) {
+        persistProfiles(profiles, { silent: true });
+    }
 }
 
 function getExams(profileId, excludeHidden = false) {

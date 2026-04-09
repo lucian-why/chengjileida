@@ -160,6 +160,22 @@
                     </div>
                 </div>
 
+                <div class="card" id="vipCard">
+                    <h2 class="card-title">👑 VIP 权限</h2>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+                        升级 VIP 解锁全部高级功能：AI 分析/对话无限次、档案数量不限、回收站恢复等。
+                    </p>
+                    <div id="vipStatusArea"></div>
+                    <div class="vip-invite-area" id="vipInviteArea">
+                        <div class="vip-invite-label">使用邀请码解锁 VIP：</div>
+                        <div class="vip-invite-input-row">
+                            <input type="text" class="vip-invite-input" id="inviteCodeInput" placeholder="输入邀请码" maxlength="16">
+                            <button type="button" class="btn-small" id="inviteCodeSubmitBtn" style="background: linear-gradient(135deg, #f0c14b, #e8a830); color: #fff; border-color: transparent;">激活</button>
+                        </div>
+                        <div class="vip-invite-msg" id="inviteCodeMsg"></div>
+                    </div>
+                </div>
+
             </div>
         </main>
     </div>
@@ -177,6 +193,23 @@
     <div id="report-render-wrapper" style="position: fixed; left: -9999px; top: 0; z-index: -1;"></div>
 
     <div class="chart-zoom-overlay" id="chartZoomOverlay"><div class="chart-zoom-container"><div class="chart-zoom-header"><h3 id="chartZoomTitle">成绩分析</h3><button class="chart-zoom-close" onclick="closeChartZoom()">✕</button></div><div class="chart-zoom-body" id="chartZoomBody"><div class="chart-tabs" id="zoomChartTabs"></div><select class="rank-type-select" id="zoomRankTypeSelect" style="display: none; margin-bottom: 12px;"><option value="class">班级排名</option><option value="grade">年级排名</option></select><div class="chart-container"><canvas id="zoomTrendChart"></canvas></div><div class="radar-container" id="zoomRadarContainer" style="display: none;"><canvas id="zoomRadarChart"></canvas></div></div></div></div>
+
+    <div class="ai-chat-overlay" id="aiChatOverlay">
+        <div class="ai-chat-panel">
+            <div class="ai-chat-header">
+                <h3 id="aiChatTitle">AI 对话</h3>
+                <div class="ai-chat-header-actions">
+                    <button type="button" class="ai-chat-clear-btn" id="aiChatClearBtn" title="清空对话">🗑️</button>
+                    <button type="button" class="ai-chat-close-btn" id="aiChatCloseBtn">✕</button>
+                </div>
+            </div>
+            <div class="ai-chat-messages" id="aiChatMessages"></div>
+            <div class="ai-chat-input-bar">
+                <textarea class="ai-chat-input" id="aiChatInput" placeholder="输入你的问题…" rows="1"></textarea>
+                <button type="button" class="ai-chat-send-btn" id="aiChatSendBtn">发送</button>
+            </div>
+        </div>
+    </div>
 
     <div style="position: fixed; bottom: 10px; right: 10px; color: var(--text-secondary); font-size: 0.8rem; opacity: 0.7;">成绩雷达 - 你的专属学习伙伴</div>
 

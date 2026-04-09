@@ -1,6 +1,6 @@
 ﻿import { getCurrentUser, isAuthEnabled } from './auth.js';
 import { callFunction } from './cloud-tcb.js';
-import { getAllLocalProfileBundles, getLocalProfileBundle, applyCloudProfileBundle } from './storage.js';
+import { getAllLocalProfileBundles, getLocalProfileBundle, applyCloudProfileBundle, getProfiles } from './storage.js';
 
 async function ensureCloudReady() {
     if (!isAuthEnabled()) {
@@ -95,6 +95,14 @@ export async function getCloudProfileData(profileId) {
 
 export async function uploadProfile(profileId) {
     const user = await ensureCloudReady();
+
+    // 禁止示例档案上传云端（静默跳过）
+    const profiles = getProfiles();
+    const profileMeta = profiles.find(p => p.id === profileId);
+    if (profileMeta?.isDemo) {
+        return { profileId, profileName: profileMeta.name, examCount: 0, lastSyncAt: new Date().toISOString() };
+    }
+
     const localBundle = getLocalProfileBundle(profileId);
     if (!localBundle) {
         throw new Error('未找到要备份的本地档案');
@@ -124,10 +132,26 @@ export async function downloadProfiles(profileIds = []) {
     const validProfiles = cloudProfiles.filter(Boolean);
 
     validProfiles.forEach((profile) => {
-        applyCloudProfileBundle(profile.bundle || profile.profileData || profile.profile_data || profile);
+        const bundle = profile.bundle || profile.profileData || profile.profile_data || profile;
+        // 跳过云端的示例档案（根据名字判断）
+        const profileName = bundle?.profile?.name || profile.profileName || '';
+        if (profileName === '人生档案' && isDemoLikeBundle(bundle)) {
+            return;
+        }
+        applyCloudProfileBundle(bundle);
     });
 
     return validProfiles;
+}
+
+/**
+ * 判断一个 bundle 是否像示例档案（只有 demo 开头的考试 ID）
+ */
+function isDemoLikeBundle(bundle) {
+    const exams = bundle?.exams || [];
+    if (exams.length === 0) return true;
+    const demoExamCount = exams.filter(exam => String(exam.id || '').startsWith('demo_')).length;
+    return demoExamCount === exams.length;
 }
 
 export async function deleteCloudProfiles(profileIds = []) {
@@ -175,9 +199,14 @@ export async function purgeDeletedProfiles(profileIds = []) {
 }
 
 export function compareProfiles(localProfiles = getAllLocalProfileBundles(), cloudProfiles = []) {
+    // 过滤掉本地示例档案
+    const profiles = getProfiles();
+    const demoIds = new Set(profiles.filter(p => p.isDemo).map(p => p.id));
+    const filteredLocal = localProfiles.filter(local => !demoIds.has(local.profileId));
+
     const cloudMap = new Map(cloudProfiles.map((item) => [item.profileId, item]));
 
-    return localProfiles.map((local) => {
+    return filteredLocal.map((local) => {
         const cloud = cloudMap.get(local.profileId);
         let status = 'local-only';
         if (cloud) {

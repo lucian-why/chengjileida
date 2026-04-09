@@ -6,6 +6,8 @@ import { showLoginPage } from './login-ui.js';
 import { showToast } from './modal.js';
 import { escHtml } from './utils.js';
 import { getBatchSubjectHints, getBatchSubjectContext, applyParsedBatchSubjects } from './batch.js';
+import { checkLimit as checkVipLimit, consumeQuota as consumeVipQuota } from './vip.js';
+import { renderReportEntry, setLastAnalysisText } from './ai-chat.js';
 
 const AI_CARD_ID = 'aiAnalysisCard';
 const AI_BATCH_STATUS_ID = 'aiBatchStatus';
@@ -70,7 +72,8 @@ const TEXT = {
     batchClassRank: '\u73ed\u6392',
     batchGradeRank: '\u5e74\u6392',
     collapseOpen: '\u5c55\u5f00',
-    collapseClose: '\u6536\u8d77'
+    collapseClose: '\u6536\u8d77',
+    quotaExhaustedTitle: '\u4eca\u65e5 AI \u5206\u6790\u6b21\u6570\u5df2\u7528\u5b8c',
 };
 
 function renderCard(html) {
@@ -176,6 +179,25 @@ function renderError(message) {
     bindRefreshButton();
 }
 
+function renderQuotaExhausted(quotaCheck) {
+    const remaining = quotaCheck.limit - quotaCheck.used;
+    renderCard(`
+        <div class="ai-analysis-card">
+            <div class="ai-analysis-card__header">
+                <div>
+                    <div class="ai-analysis-card__eyebrow">${TEXT.analysisEyebrow}</div>
+                    <h3 class="ai-analysis-card__title">${TEXT.analysisTitle}</h3>
+                </div>
+            </div>
+            <div class="ai-analysis-card__empty">
+                <div class="ai-analysis-card__empty-icon">🔒</div>
+                <div class="ai-analysis-card__empty-title">${escHtml(quotaCheck.reason || TEXT.quotaExhaustedTitle)}</div>
+                <p class="ai-analysis-card__empty-desc">升级 VIP 可解除次数限制，每日无限使用。</p>
+            </div>
+        </div>
+    `);
+}
+
 function formatAnalysisHtml(text) {
     const escaped = escHtml(text || '');
     const withStrong = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -215,6 +237,8 @@ function renderSuccess(text, meta = null) {
         </div>
     `);
     bindRefreshButton();
+    setLastAnalysisText(text);
+    renderReportEntry();
 }
 
 function bindRefreshButton() {
@@ -487,6 +511,13 @@ export async function refreshAIAnalysisCard({ force = false } = {}) {
     const requestToken = ++analysisRequestToken;
     renderLoading();
 
+    // VIP 配额检查
+    const quotaCheck = checkVipLimit('aiAnalysis');
+    if (!quotaCheck.allowed) {
+        renderQuotaExhausted(quotaCheck);
+        return;
+    }
+
     try {
         const result = await callFunction('ai_service', {
             action: 'analyze',
@@ -505,6 +536,7 @@ export async function refreshAIAnalysisCard({ force = false } = {}) {
             source: result?.data?.source || '',
             fallbackReason: result?.data?.fallbackReason || ''
         };
+        consumeVipQuota('aiAnalysis');
         renderSuccess(result.data.text, lastAnalysisMeta);
     } catch (error) {
         if (requestToken !== analysisRequestToken) return;
