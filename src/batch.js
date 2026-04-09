@@ -63,16 +63,18 @@ export function closeBatchModal() {
     state.batchList = [];
 }
 
-function renderBatchTable() {
+function renderBatchTable({ skipSyncFromDOM = false } = {}) {
     const tbody = document.getElementById('batchTableBody');
 
-    tbody.querySelectorAll('.batch-input').forEach(input => {
-        const idx = parseInt(input.dataset.idx, 10);
-        const field = input.dataset.field;
-        if (!Number.isNaN(idx) && field && state.batchList[idx]) {
-            state.batchList[idx][field] = input.value;
-        }
-    });
+    if (!skipSyncFromDOM) {
+        tbody.querySelectorAll('.batch-input').forEach(input => {
+            const idx = parseInt(input.dataset.idx, 10);
+            const field = input.dataset.field;
+            if (!Number.isNaN(idx) && field && state.batchList[idx]) {
+                state.batchList[idx][field] = input.value;
+            }
+        });
+    }
 
     tbody.innerHTML = state.batchList.map((subject, index) => `
         <tr>
@@ -138,6 +140,18 @@ export function getBatchSubjectHints() {
         .filter(Boolean);
 }
 
+export function getBatchSubjectContext() {
+    return state.batchList
+        .filter(subject => String(subject.name || '').trim())
+        .map(subject => ({
+            name: String(subject.name || '').trim(),
+            score: subject.score !== '' && subject.score !== undefined ? Number(subject.score) : null,
+            fullScore: Number(subject.fullScore) || 100,
+            classRank: subject.classRank !== '' && subject.classRank !== undefined ? Number(subject.classRank) : null,
+            gradeRank: subject.gradeRank !== '' && subject.gradeRank !== undefined ? Number(subject.gradeRank) : null
+        }));
+}
+
 export function applyParsedBatchSubjects(parsedSubjects = []) {
     if (!Array.isArray(parsedSubjects) || parsedSubjects.length === 0) {
         return { updated: 0, created: 0 };
@@ -191,7 +205,7 @@ export function applyParsedBatchSubjects(parsedSubjects = []) {
         created += 1;
     });
 
-    renderBatchTable();
+    renderBatchTable({ skipSyncFromDOM: true });
     return { updated, created };
 }
 

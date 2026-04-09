@@ -10,8 +10,8 @@ const app = tcb.init({
 });
 
 const ai = app.ai();
-const AI_PROVIDER = process.env.AI_PROVIDER || 'deepseek';
-const AI_MODEL = process.env.AI_MODEL || 'deepseek-v3.2';
+const AI_PROVIDER = process.env.AI_PROVIDER || 'hunyuan-exp';
+const AI_MODEL = process.env.AI_MODEL || 'hunyuan-2.0-instruct-20251111';
 const AI_BASE_URL = String(process.env.AI_BASE_URL || '').trim();
 const AI_API_KEY = String(process.env.AI_API_KEY || '').trim();
 
@@ -145,6 +145,7 @@ async function handleInputParse(data = {}) {
   const subjectHints = Array.isArray(data.subjectHints)
     ? data.subjectHints.map(item => String(item || '').trim()).filter(Boolean)
     : [];
+  const subjectContext = Array.isArray(data.subjectContext) ? data.subjectContext : [];
 
   if (!text) {
     return { code: 400, message: '请先输入需要识别的成绩文本' };
@@ -152,21 +153,27 @@ async function handleInputParse(data = {}) {
 
   const localParsed = parseSubjectsLocally(text, subjectHints);
   if (localParsed.length > 0) {
+    // 即使本地匹配到，也检查是否是对已有科目成绩的修改
+    const merged = mergeWithExistingContext(localParsed, subjectContext);
     return {
       code: 0,
       data: {
-        subjects: localParsed,
+        subjects: merged,
         source: 'fallback'
       }
     };
   }
 
   try {
+    const userPayload = { text, subjectHints };
+    if (subjectContext.length > 0) {
+      userPayload.currentSubjects = subjectContext;
+    }
     const responseText = await generateWithAI([
       { role: 'system', content: inputParsePrompt },
       {
         role: 'user',
-        content: JSON.stringify({ text, subjectHints }, null, 2)
+        content: JSON.stringify(userPayload, null, 2)
       }
     ], { temperature: 0.1, maxTokens: 500 });
 
@@ -251,6 +258,10 @@ function normalizeAIError(error) {
 
   if (/status code 401/i.test(message) || /unauthorized/i.test(message)) {
     return '当前环境的 AI 模型尚未正确配置或授权，请在 CloudBase ai+ 控制台补充 DeepSeek/Hunyuan 的 API Key 后再试。';
+  }
+
+  if (/status code 429/i.test(message) || /rate limit/i.test(message) || /quota/i.test(message) || /too many requests/i.test(message)) {
+    return 'AI 模型调用额度已用尽或请求过于频繁，请稍后再试，或在 CloudBase ai+ 控制台检查配额。';
   }
 
   if (/api key/i.test(message) || /invalid api key/i.test(message)) {
@@ -381,6 +392,7 @@ function parseSubjectsLocally(text, subjectHints = []) {
   const hints = [...new Set([...DEFAULT_SUBJECTS, ...subjectHints].map(item => String(item || '').trim()).filter(Boolean))];
   const normalizedText = String(text || '')
     .replace(/[，、。]/g, ' ')
+    .replace(/\s*(?:改成?|改为|修改为?|调整为?|更正为?|→|➡|->)\s*/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -419,4 +431,9 @@ function parseSubjectsLocally(text, subjectHints = []) {
 
 function escapeRegExp(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mergeWithExistingContext(parsed, subjectContext = []) {
+  if (!subjectContext.length) return parsed;
+  return parsed;
 }

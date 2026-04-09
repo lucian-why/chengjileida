@@ -5,7 +5,7 @@ import { getCurrentUser } from './auth.js';
 import { showLoginPage } from './login-ui.js';
 import { showToast } from './modal.js';
 import { escHtml } from './utils.js';
-import { getBatchSubjectHints, applyParsedBatchSubjects } from './batch.js';
+import { getBatchSubjectHints, getBatchSubjectContext, applyParsedBatchSubjects } from './batch.js';
 
 const AI_CARD_ID = 'aiAnalysisCard';
 const AI_BATCH_STATUS_ID = 'aiBatchStatus';
@@ -36,6 +36,10 @@ const TEXT = {
     analysisLoginTitle: '\u767b\u5f55\u540e\u5373\u53ef\u4f7f\u7528 AI \u5206\u6790',
     analysisLoginDesc: '\u767b\u5f55\u540e\uff0cAI \u4f1a\u7ed3\u5408\u5f53\u524d\u6863\u6848\u7684\u8003\u8bd5\u8bb0\u5f55\u751f\u6210\u8d8b\u52bf\u5224\u65ad\u3001\u4f18\u52bf\u79d1\u76ee\u548c\u6539\u8fdb\u5efa\u8bae\u3002',
     analysisLoginAction: '\u53bb\u767b\u5f55',
+    analysisReadyTitle: '\u9700\u8981\u65f6\u518d\u8ba9 AI \u5f00\u59cb\u5206\u6790',
+    analysisReadyDesc: '\u70b9\u51fb\u6309\u94ae\u540e\u624d\u4f1a\u5411 AI \u53d1\u8d77\u8bf7\u6c42\uff0c\u907f\u514d\u6d6a\u8d39 token\u3002',
+    analysisReadyRefreshDesc: '\u5f53\u524d\u6210\u7ee9\u6709\u66f4\u65b0\uff0c\u70b9\u51fb\u540e\u518d\u751f\u6210\u65b0\u7684 AI \u5206\u6790\u3002',
+    analysisAction: '\u5f00\u59cb AI \u5206\u6790',
     analysisLoading: 'AI \u6b63\u5728\u9605\u8bfb\u5f53\u524d\u6863\u6848\u7684\u6210\u7ee9\u53d8\u5316\uff0c\u8bf7\u7a0d\u7b49\u7247\u523b\u3002',
     analysisRetry: '\u91cd\u8bd5',
     analysisRefresh: '\u91cd\u65b0\u5206\u6790',
@@ -136,6 +140,26 @@ function renderLoading() {
     `);
 }
 
+function renderReady({ stale = false } = {}) {
+    renderCard(`
+        <div class="ai-analysis-card">
+            <div class="ai-analysis-card__header">
+                <div>
+                    <div class="ai-analysis-card__eyebrow">${TEXT.analysisEyebrow}</div>
+                    <h3 class="ai-analysis-card__title">${TEXT.analysisTitle}</h3>
+                </div>
+            </div>
+            <div class="ai-analysis-card__empty">
+                <div class="ai-analysis-card__empty-icon">🤖</div>
+                <div class="ai-analysis-card__empty-title">${TEXT.analysisReadyTitle}</div>
+                <p class="ai-analysis-card__empty-desc">${stale ? TEXT.analysisReadyRefreshDesc : TEXT.analysisReadyDesc}</p>
+                <button type="button" class="ai-analysis-card__action" id="aiAnalysisRunBtn">${TEXT.analysisAction}</button>
+            </div>
+        </div>
+    `);
+    bindRunButton();
+}
+
 function renderError(message) {
     renderCard(`
         <div class="ai-analysis-card">
@@ -198,6 +222,12 @@ function renderSuccess(text, meta = null) {
 
 function bindRefreshButton() {
     document.getElementById('aiAnalysisRefreshBtn')?.addEventListener('click', () => {
+        refreshAIAnalysisCard({ force: true });
+    });
+}
+
+function bindRunButton() {
+    document.getElementById('aiAnalysisRunBtn')?.addEventListener('click', () => {
         refreshAIAnalysisCard({ force: true });
     });
 }
@@ -364,13 +394,15 @@ async function handleBatchParse() {
 
     setBatchLoading(true);
     setBatchStatus(TEXT.batchPending, 'pending');
+    setBatchCollapsed(false);
 
     try {
         const result = await callFunction('ai_service', {
             action: 'inputParse',
             data: {
                 text: rawText,
-                subjectHints: getBatchSubjectHints()
+                subjectHints: getBatchSubjectHints(),
+                subjectContext: getBatchSubjectContext()
             }
         });
 
@@ -445,8 +477,15 @@ export async function refreshAIAnalysisCard({ force = false } = {}) {
 
     const payload = buildAnalysisPayload(exams);
     const cacheKey = JSON.stringify(payload);
-    if (!force && cacheKey === lastAnalysisKey && lastAnalysisHtml) {
-        renderSuccess(lastAnalysisHtml, lastAnalysisMeta);
+    if (!force) {
+        if (cacheKey === lastAnalysisKey && lastAnalysisHtml) {
+            renderSuccess(lastAnalysisHtml, lastAnalysisMeta);
+            return;
+        }
+
+        renderReady({
+            stale: Boolean(lastAnalysisHtml && lastAnalysisKey && lastAnalysisKey !== cacheKey)
+        });
         return;
     }
 
