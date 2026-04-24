@@ -1,5 +1,5 @@
 ﻿import state from './store.js';
-import { migrateProfilesIfNeeded, getExams, getExamsAll, saveExams, getActiveProfileId } from './storage.js';
+import { migrateProfilesIfNeeded, getExams, getExamsAll, saveExams, getActiveProfileId, detectOrphanProfiles, claimOrphanProfiles } from './storage.js';
 import { initSupabase, isAuthEnabled, getCurrentUser, onAuthStateChange, signOut } from './auth.js';
 import { showLoginPage, hideLoginPage, renderAuthStatus, renderGuestAuthStatus, clearAuthStatus, setLoginSuccessHandler, setLogoutHandler, setAuthSyncStatus } from './login-ui.js';
 import { showConfirmDialog, showToast } from './modal.js';
@@ -15,6 +15,7 @@ import { setupImportExport, setDependencies as setImportExportDeps } from './imp
 import { openShareExamReport, openShareProfileReport, closeShareReport, downloadReport, setupReportEvents } from './report.js';
 import { setupDemoBtn, checkFirstLaunch, setDependencies as setDemoDataDeps } from './demo-data.js';
 import { openCloudSyncPanel, closeCloudSyncPanel, setDependencies as setCloudSyncDeps } from './cloud-sync-ui.js';
+import { archiveOrphanProfiles } from './cloud-sync.js';
 import { ENCOURAGEMENT_SCENES, leaveEncouragementScene, restoreActiveEncouragementScene } from './encouragement-copy.js';
 import { startAdminApp } from './admin-app.js';
 import { initAI, scheduleAIAnalysisRefresh, refreshAIAnalysisCard } from './ai.js';
@@ -266,11 +267,75 @@ async function initCoreApp() {
     await refreshAll();
 }
 
+/**
+ * 孤儿档案选择对话框
+ * 返回 'claim'（同步到当前账号）或 'archive'（归档到回收站）或 null（关闭）
+ */
+function showOrphanDataDialog(profileNames, examCount) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = 'background:#fff;border-radius:16px;padding:28px 24px 20px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+
+        dialog.innerHTML = `
+            <div style="text-align:center;margin-bottom:16px;">
+                <div style="font-size:40px;">📂</div>
+                <h3 style="margin:8px 0 4px;font-size:18px;color:#1a1a1a;">发现本地数据</h3>
+                <p style="margin:0;font-size:14px;color:#666;line-height:1.6;">
+                    检测到 <b>${profileNames}</b> 共 ${examCount} 条成绩，是否同步到当前账号？
+                </p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <button id="orphan-claim-btn" style="padding:12px;border:none;border-radius:10px;background:#4f6ef7;color:#fff;font-size:15px;font-weight:500;cursor:pointer;">
+                    同步到当前账号
+                </button>
+                <button id="orphan-archive-btn" style="padding:12px;border:1px solid #e0e0e0;border-radius:10px;background:#fff;color:#666;font-size:14px;cursor:pointer;">
+                    不同步，移入回收站
+                </button>
+            </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        const cleanup = (value) => {
+            overlay.remove();
+            resolve(value);
+        };
+
+        dialog.querySelector('#orphan-claim-btn').onclick = () => cleanup('claim');
+        dialog.querySelector('#orphan-archive-btn').onclick = () => cleanup('archive');
+        overlay.onclick = (e) => { if (e.target === overlay) cleanup(null); };
+    });
+}
+
 async function handleSignedIn(user) {
     hideLoginPage();
     renderAuthStatus(user);
     setAuthSyncStatus(getAutoSyncStatusText(), 'info', true);
     await initCoreApp();
+
+    // 检测孤儿档案，弹窗让用户选择
+    if (user?.id) {
+        const { hasOrphans, orphanProfiles, orphanExamCount } = detectOrphanProfiles(user.id);
+        if (hasOrphans) {
+            const profileNames = orphanProfiles.map(p => p.name).join('、');
+            const choice = await showOrphanDataDialog(profileNames, orphanExamCount);
+            if (choice === 'claim') {
+                // 认领到当前账号
+                claimOrphanProfiles(user.id);
+                showToast({ icon: '✅', title: '数据已同步', message: `${orphanProfiles.length} 个档案已关联到当前账号` });
+            } else if (choice === 'archive') {
+                // 归档到回收站，本地清除
+                const archived = await archiveOrphanProfiles(user.id);
+                showToast({ icon: '📦', title: '数据已归档', message: `${archived} 个档案已移入云端回收站` });
+                await refreshAll();
+            }
+        }
+    }
+
     await syncAfterLogin();
 
     if (pendingPostLoginAction === 'cloud-sync') {

@@ -66,8 +66,10 @@ function normalizeProfiles(rawProfiles = []) {
             changed = true;
         }
 
+        const ownerId = source.ownerId || '';
         const result = { id, name, createdAt };
         if (isDemo) result.isDemo = true;
+        if (ownerId) result.ownerId = ownerId;
         return result;
     });
 
@@ -105,6 +107,7 @@ function createProfile(name, options = {}) {
     const id = 'profile_' + Date.now();
     const profile = { id, name, createdAt: new Date().toISOString() };
     if (options.isDemo) profile.isDemo = true;
+    if (options.ownerId) profile.ownerId = options.ownerId;
     profiles.push(profile);
     saveProfiles(profiles);
     return id;
@@ -371,7 +374,7 @@ function mergeExamLists(localExams = [], cloudExams = []) {
         .sort((a, b) => getExamTimestamp(b) - getExamTimestamp(a));
 }
 
-function applyCloudProfileBundle(cloudBundle) {
+function applyCloudProfileBundle(cloudBundle, currentUserId) {
     const payload = cloudBundle?.profile_data || cloudBundle?.bundle || cloudBundle;
     if (!payload?.profile) {
         throw new Error('云端档案数据结构无效');
@@ -380,6 +383,8 @@ function applyCloudProfileBundle(cloudBundle) {
     const localProfiles = getProfiles();
     const localExams = getExamsAll();
     const incomingProfile = { ...payload.profile };
+    // 云端数据标记当前用户归属
+    if (currentUserId) incomingProfile.ownerId = currentUserId;
     const incomingExams = (payload.exams || []).map(exam => ({ ...exam, profileId: incomingProfile.id }));
     const existingProfileIndex = localProfiles.findIndex(profile => profile.id === incomingProfile.id);
 
@@ -402,6 +407,88 @@ function applyCloudProfileBundle(cloudBundle) {
     persistProfiles(localProfiles, { silent: true });
     persistExams(otherExams.concat(mergedProfileExams), { silent: true });
     setProfileMemory(incomingProfile.id, payload.formMemory || {}, { silent: true });
+}
+
+// ==================== 数据归属与孤儿档案管理 ====================
+
+/**
+ * 检测本地是否存在孤儿档案（非demo且ownerId与当前用户不匹配的档案）
+ * 用于登录后弹窗提示用户选择同步方式
+ *
+ * @param {string} currentUserId - 当前登录用户ID
+ * @returns {{ hasOrphans: boolean, orphanProfiles: Array, orphanExamCount: number }}
+ */
+export function detectOrphanProfiles(currentUserId) {
+    const profiles = getProfiles();
+    const orphanProfiles = profiles.filter(p => !p.isDemo && (!p.ownerId || p.ownerId !== currentUserId));
+
+    if (orphanProfiles.length === 0) {
+        return { hasOrphans: false, orphanProfiles: [], orphanExamCount: 0 };
+    }
+
+    const allExams = getExamsAll();
+    const orphanIds = new Set(orphanProfiles.map(p => p.id));
+    const orphanExamCount = allExams.filter(e => orphanIds.has(e.profileId)).length;
+
+    return { hasOrphans: true, orphanProfiles, orphanExamCount };
+}
+
+/**
+ * 将孤儿档案认领到当前账号（标记 ownerId）
+ *
+ * @param {string} currentUserId - 当前登录用户ID
+ */
+export function claimOrphanProfiles(currentUserId) {
+    const profiles = getProfiles();
+    let changed = false;
+    profiles.forEach(p => {
+        if (!p.isDemo && (!p.ownerId || p.ownerId !== currentUserId)) {
+            p.ownerId = currentUserId;
+            changed = true;
+        }
+    });
+    if (changed) {
+        persistProfiles(profiles, { silent: true });
+    }
+}
+
+/**
+ * 将孤儿档案从本地清除（选"不同步"时调用）
+ * 返回被清除的 bundle 列表，供上传到回收站使用
+ *
+ * @param {string} currentUserId - 当前登录用户ID（用于上传回收站时关联）
+ * @returns {Array} 被清除的档案 bundle 列表
+ */
+export function removeOrphanProfiles(currentUserId) {
+    const profiles = getProfiles();
+    const orphanProfiles = profiles.filter(p => !p.isDemo && (!p.ownerId || p.ownerId !== currentUserId));
+
+    if (orphanProfiles.length === 0) return [];
+
+    // 收集被清除的 bundle（供后续上传回收站）
+    const removedBundles = orphanProfiles.map(p => getLocalProfileBundle(p.id)).filter(Boolean);
+
+    // 清除 orphan 档案和考试
+    const orphanIds = new Set(orphanProfiles.map(p => p.id));
+    const remainingProfiles = profiles.filter(p => !orphanIds.has(p.id));
+    const remainingExams = getExamsAll().filter(e => !orphanIds.has(e.profileId));
+
+    // 清除 form memory
+    const memory = getFormMemoryAll();
+    orphanIds.forEach(id => delete memory[id]);
+
+    persistProfiles(remainingProfiles, { silent: true });
+    persistExams(remainingExams, { silent: true });
+    persistFormMemory(memory, { silent: true });
+
+    // 重置活跃档案
+    const activeId = getActiveProfileId();
+    if (orphanIds.has(activeId)) {
+        setActiveProfileId(remainingProfiles.length > 0 ? remainingProfiles[0].id : '');
+    }
+
+    notifyStorageChanged({ type: 'orphan-removed' });
+    return removedBundles;
 }
 
 export {

@@ -1,8 +1,8 @@
 /**
- * vip-ui.js — VIP 状态展示 & 邀请码兑换 UI
+ * vip-ui.js — VIP 状态展示 & 兑换码 UI
  */
 
-import { isVip, getQuotaOverview, redeemInviteCode } from './vip.js';
+import { isVip, getQuotaOverview, redeemVipCode } from './vip.js';
 import { getCurrentUser } from './auth.js';
 import { showToast } from './modal.js';
 
@@ -33,19 +33,19 @@ async function handleRedeem() {
 
     const code = input.value.trim();
     if (!code) {
-        showMsg(msgEl, '请输入邀请码', 'error');
+        showMsg(msgEl, '请输入兑换码', 'error');
         return;
     }
 
     const btn = document.getElementById('inviteCodeSubmitBtn');
-    if (btn) { btn.disabled = true; btn.textContent = '激活中…'; }
+    if (btn) { btn.disabled = true; btn.textContent = '兑换中…'; }
 
     try {
-        const result = redeemInviteCode(code);
+        const result = await redeemVipCode(code);
 
         if (!result.success) {
-            showMsg(msgEl, result.reason || '激活失败', 'error');
-            showToast({ icon: '⚠️', iconType: 'warning', title: '激活失败', message: result.reason });
+            showMsg(msgEl, result.reason || '兑换失败', 'error');
+            showToast({ icon: '⚠️', iconType: 'warning', title: '兑换失败', message: result.reason });
             return;
         }
 
@@ -54,13 +54,13 @@ async function handleRedeem() {
         showToast({
             icon: '🎉',
             iconType: 'success',
-            title: 'VIP 激活成功',
+            title: 'VIP 兑换成功',
             message: `VIP 有效期至 ${new Date(result.expireAt).toLocaleDateString()}，享受全部高级功能！`
         });
 
         renderVipStatus();
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '激活'; }
+        if (btn) { btn.disabled = false; btn.textContent = '兑换'; }
     }
 }
 

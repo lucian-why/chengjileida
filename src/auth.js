@@ -31,8 +31,14 @@ import {
     phoneRegister as tcbPhoneRegister,
     phoneResetPassword as tcbPhoneResetPassword,
     updateNickname as tcbUpdateNickname,
-    refreshUser as tcbRefreshUser
+    refreshUser as tcbRefreshUser,
+    clearAuthStorage as clearTCBAuthStorage,
+    saveAuthSession,
+    getCurrentUserId,
+    getCurrentUserEmail
 } from './cloud-tcb.js';
+
+export { saveAuthSession };
 
 let initialized = false;
 let authEnabled = false;
@@ -96,6 +102,17 @@ function hasAuthConfig() {
 }
 
 function emitAuthChange(event, payload = {}) {
+    // 登录/登出时同步 VIP 缓存，防止切换账号后旧 VIP 状态残留
+    if (event === 'SIGNED_IN' && payload.user) {
+        const vipState = (payload.user.role === 'vip' || payload.user.isAdmin)
+            ? { isVip: true, expireAt: payload.user.vipExpireAt || null }
+            : (payload.user.vipExpireAt && new Date(payload.user.vipExpireAt).getTime() > Date.now())
+                ? { isVip: true, expireAt: payload.user.vipExpireAt }
+                : { isVip: false, expireAt: null };
+        try { localStorage.setItem('cjradar_vip_state', JSON.stringify(vipState)); } catch (e) {}
+    } else if (event === 'SIGNED_OUT') {
+        try { localStorage.removeItem('cjradar_vip_state'); } catch (e) {}
+    }
     listeners.forEach((listener) => {
         try { listener(event, payload); }
         catch (error) { console.warn('[auth] 监听登录状态变更失败：', error); }
@@ -130,8 +147,8 @@ export async function getCurrentUser() {
     if (!isValidUserShape(user)) return null;
 
     if (!user.id && isBrowser()) {
-        const storedId = localStorage.getItem(USER_ID_KEY) || '';
-        const storedEmail = localStorage.getItem(USER_EMAIL_KEY) || '';
+        const storedId = getCurrentUserId();
+        const storedEmail = getCurrentUserEmail();
         const hydratedUser = {
             ...user,
             id: storedId || user.id || '',
@@ -304,6 +321,8 @@ export async function signOut() {
     if (isAuthEnabled()) {
         await signOutTCB();
     }
+    // 清除 VIP 缓存，防止切换账号后旧 VIP 状态残留
+    localStorage.removeItem('cjradar_vip_state');
     emitAuthChange('SIGNED_OUT', { user: null, token: null });
 }
 

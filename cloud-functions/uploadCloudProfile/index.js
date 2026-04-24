@@ -55,7 +55,7 @@ async function getCurrentUser(event = {}) {
 
 exports.main = async (event = {}) => {
   const payload = parseEventPayload(event);
-  const { profileId, profileName, profileData, examCount, dataSize, userEmail } = payload;
+  const { profileId, profileName, profileData, examCount, dataSize, userEmail, deleted, deletedAt } = payload;
 
   if (!profileId || typeof profileId !== 'string') {
     return { code: 400, message: '缺少 profileId' };
@@ -93,6 +93,8 @@ exports.main = async (event = {}) => {
         examCount: normalizedExamCount,
         dataSize: normalizedDataSize,
         userEmail: userEmail || currentDoc.userEmail || '',
+        deleted: !!deleted,
+        deletedAt: deleted ? (deletedAt || now) : null,
         lastSyncAt: now,
         updatedAt: now
       });
@@ -116,6 +118,8 @@ exports.main = async (event = {}) => {
       profileData,
       examCount: normalizedExamCount,
       dataSize: normalizedDataSize,
+      deleted: !!deleted,
+      deletedAt: deleted ? (deletedAt || now) : null,
       lastSyncAt: now,
       createdAt: now,
       updatedAt: now

@@ -1,6 +1,6 @@
 ﻿import { getCurrentUser, isAuthEnabled } from './auth.js';
 import { callFunction } from './cloud-tcb.js';
-import { getAllLocalProfileBundles, getLocalProfileBundle, applyCloudProfileBundle, getProfiles } from './storage.js';
+import { getAllLocalProfileBundles, getLocalProfileBundle, applyCloudProfileBundle, getProfiles, removeOrphanProfiles } from './storage.js';
 
 async function ensureCloudReady() {
     if (!isAuthEnabled()) {
@@ -103,6 +103,11 @@ export async function uploadProfile(profileId) {
         return { profileId, profileName: profileMeta.name, examCount: 0, lastSyncAt: new Date().toISOString() };
     }
 
+    // 校验数据归属：只允许上传属于当前用户或无主的档案
+    if (profileMeta?.ownerId && profileMeta.ownerId !== user.id) {
+        throw new Error('该档案不属于当前账号，无法上传');
+    }
+
     const localBundle = getLocalProfileBundle(profileId);
     if (!localBundle) {
         throw new Error('未找到要备份的本地档案');
@@ -128,6 +133,7 @@ export async function uploadProfile(profileId) {
 }
 
 export async function downloadProfiles(profileIds = []) {
+    const user = await ensureCloudReady();
     const cloudProfiles = await Promise.all(profileIds.map((profileId) => getCloudProfileData(profileId)));
     const validProfiles = cloudProfiles.filter(Boolean);
 
@@ -138,7 +144,7 @@ export async function downloadProfiles(profileIds = []) {
         if (profileName === '人生档案' && isDemoLikeBundle(bundle)) {
             return;
         }
-        applyCloudProfileBundle(bundle);
+        applyCloudProfileBundle(bundle, user.id);
     });
 
     return validProfiles;
@@ -198,11 +204,12 @@ export async function purgeDeletedProfiles(profileIds = []) {
     return data?.count || data?.purgedCount || profileIds.length;
 }
 
-export function compareProfiles(localProfiles = getAllLocalProfileBundles(), cloudProfiles = []) {
-    // 过滤掉本地示例档案
+export function compareProfiles(localProfiles = getAllLocalProfileBundles(), cloudProfiles = [], currentUserId = '') {
+    // 过滤掉本地示例档案和不属于当前用户的档案
     const profiles = getProfiles();
     const demoIds = new Set(profiles.filter(p => p.isDemo).map(p => p.id));
-    const filteredLocal = localProfiles.filter(local => !demoIds.has(local.profileId));
+    const otherOwnerIds = new Set(profiles.filter(p => !p.isDemo && p.ownerId && p.ownerId !== currentUserId).map(p => p.id));
+    const filteredLocal = localProfiles.filter(local => !demoIds.has(local.profileId) && !otherOwnerIds.has(local.profileId));
 
     const cloudMap = new Map(cloudProfiles.map((item) => [item.profileId, item]));
 
@@ -233,6 +240,40 @@ export function getLocalProfileSummaries() {
         examCount: bundle.examCount,
         dataSize: bundle.dataSize
     }));
+}
+
+/**
+ * 归档孤儿档案到当前账号的回收站，并从本地删除
+ * 用户选择"不同步"时调用
+ *
+ * @param {string} currentUserId - 当前登录用户ID
+ * @returns {Promise<number>} 成功归档的档案数量
+ */
+export async function archiveOrphanProfiles(currentUserId) {
+    const removedBundles = removeOrphanProfiles(currentUserId);
+    if (removedBundles.length === 0) return 0;
+
+    let archivedCount = 0;
+    for (const bundle of removedBundles) {
+        try {
+            // 上传到云端（标记为删除状态）
+            await callSyncFunction('uploadCloudProfile', {
+                profileId: bundle.profileId,
+                profileName: bundle.profileName,
+                profileData: bundle.bundle,
+                examCount: bundle.examCount,
+                dataSize: bundle.dataSize,
+                userId: currentUserId,
+                deleted: true,
+                deletedAt: new Date().toISOString()
+            }, '归档档案到回收站失败');
+            archivedCount++;
+        } catch (err) {
+            console.warn('[cloud-sync] 归档档案到回收站失败:', bundle.profileName, err?.message || err);
+        }
+    }
+
+    return archivedCount;
 }
 
 

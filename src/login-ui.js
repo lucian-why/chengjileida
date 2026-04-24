@@ -20,9 +20,92 @@
 
 import {
     sendEmailCode, sendSmsCode, emailLogin, emailCodeLogin, smsLogin, passwordLogin, resetPassword,
-    phonePasswordLogin, phoneRegisterFn, phoneResetPasswordFn, updateUserNickname, verifyPhoneOtp
+    phonePasswordLogin, phoneRegisterFn, phoneResetPasswordFn, updateUserNickname, verifyPhoneOtp, saveAuthSession
 } from './auth.js';
 import { isAdminUser } from './auth.js';
+import QRCode from 'qrcode';
+import { initTCB } from './cloud-tcb.js';
+
+let qrcodeLoginWatcher = null;
+let currentQrcodeUuid = null;
+
+async function startQrcodeLogin() {
+    stopQrcodeLogin();
+    
+    // 生成随机 UUID
+    const uuid = 'qr_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    currentQrcodeUuid = uuid;
+    
+    const qrcodeContent = `score-radar-login:${uuid}`;
+    const canvas = document.getElementById('loginQrcodeCanvas');
+    const statusText = document.getElementById('qrcodeStatus');
+    
+    try {
+        await QRCode.toCanvas(canvas, qrcodeContent, {
+            width: 200,
+            margin: 2,
+            color: { dark: '#10a37f', light: '#ffffff' }
+        });
+        statusText.textContent = '请打开小程序扫码';
+        
+        // 监听数据库
+        const app = await initTCB();
+        const db = app.database();
+        
+        // 先插入一条 pending 状态的记录（网页端匿名登录下创建会拥有读写权限）
+        try {
+            await db.collection('web_login_sessions').add({
+                uuid: uuid,
+                status: 'pending',
+                createTime: db.serverDate()
+            });
+        } catch(e) {
+            console.warn('[QRCode] create session error', e);
+            // 忽略创建失败，可能权限限制，直接依赖小程序的插入/更新
+        }
+
+        qrcodeLoginWatcher = db.collection('web_login_sessions').where({
+            uuid: uuid
+        }).watch({
+            onChange: function(snapshot) {
+                if (snapshot.docs.length > 0) {
+                    const doc = snapshot.docs[0];
+                    if (doc.status === 'confirmed' && doc.userId && doc.token) {
+                        statusText.textContent = '授权成功！正在登录...';
+                        stopQrcodeLogin();
+                        
+                        // 从 doc 中提取 user 和 token
+                        const user = doc.user || { id: doc.userId, nickname: '扫码用户' };
+                        const token = doc.token;
+                        
+                        saveAuthSession({ token, user });
+                        
+                        // 触发登录成功回调
+                        if (onLoginSuccess) {
+                            onLoginSuccess({ user, token });
+                        }
+                        hideLoginPage();
+                    }
+                }
+            },
+            onError: function(err) {
+                console.error('[QRCode] watch error:', err);
+            }
+        });
+
+    } catch (err) {
+        console.error('[QRCode] generate error:', err);
+        statusText.textContent = '二维码生成失败';
+    }
+}
+
+function stopQrcodeLogin() {
+    if (qrcodeLoginWatcher) {
+        qrcodeLoginWatcher.close();
+        qrcodeLoginWatcher = null;
+    }
+    currentQrcodeUuid = null;
+}
 
 let onLoginSuccess = null;
 let onLogout = null;
@@ -122,11 +205,25 @@ function ensureLoginUi() {
 
                     <!-- 底部辅助操作 -->
                     <div class="login-footer-links">
+                        <a href="javascript:void(0)" id="qrcodeLoginLink" class="login-link">💻 扫码登录</a>
                         <a href="javascript:void(0)" id="smsLoginLink" class="login-link">📨 验证码登录</a>
                         <a href="javascript:void(0)" id="registerLink" class="login-link">📝 注册账号</a>
                         <a href="javascript:void(0)" id="forgotPwdLink" class="login-link">忘记密码？</a>
                         <a href="javascript:void(0)" id="backToLoginFromRegister" class="login-link" style="display:none;">← 返回登录</a>
                     </div>
+                    </div>
+
+                    <!-- 扫码登录面板（默认隐藏） -->
+                    <div id="qrcodeLoginPanel" style="display:none;">
+                        <div class="reset-panel-shell" style="text-align: center;">
+                            <div style="font-weight:600; font-size:0.95rem; margin-bottom:12px;">扫码登录</div>
+                            <p style="font-size:0.85rem; color:#666; margin-bottom:16px;">请使用小程序“我的 - 扫码登录网页版”扫描下方二维码</p>
+                            <div id="qrcodeContainer" style="margin: 0 auto 16px auto; background: #f7f9fa; padding: 16px; border-radius: 8px; display: inline-block;">
+                                <canvas id="loginQrcodeCanvas"></canvas>
+                            </div>
+                            <p id="qrcodeStatus" style="font-size:0.85rem; color:#10a37f; margin-bottom:12px;"></p>
+                            <a href="javascript:void(0)" id="backToLoginFromQrcode" class="login-link" style="display:inline-block; margin-top:8px;">← 返回登录</a>
+                        </div>
                     </div>
 
                     <!-- 找回密码面板（默认隐藏） -->
@@ -173,7 +270,7 @@ function ensureLoginUi() {
         authBar.className = 'auth-status-bar hidden';
         authBar.innerHTML = `
             <div class="auth-status-main">
-                <span class="auth-status-label" id="authStatusLabel">云端账户</span>
+                <span class="auth-status-label" id="authStatusLabel">我的账号</span>
                 <span class="auth-status-value" id="authStatusValue">未登录</span>
                 <span class="auth-sync-status hidden" id="authSyncStatus"></span>
             </div>
@@ -225,13 +322,26 @@ function switchLoginMode(mode, subMode) {
     const switchHint = document.getElementById('modeSwitchHint');
     const submitText = document.getElementById('submitBtnText');
     const smsLink = document.getElementById('smsLoginLink');
+    const qrcodeLink = document.getElementById('qrcodeLoginLink');
     const forgotLink = document.getElementById('forgotPwdLink');
     const resetPanel = document.getElementById('resetPwdPanel');
+    const qrcodePanel = document.getElementById('qrcodeLoginPanel');
     const registerLink = document.getElementById('registerLink');
 
-    // 先隐藏找回密码面板
+    // 先隐藏独立面板
     if (resetPanel) resetPanel.style.display = 'none';
+    if (qrcodePanel) qrcodePanel.style.display = 'none';
     if (mainPanel) mainPanel.style.display = '';
+
+    if (subMode === 'qrcode') {
+        if (mainPanel) mainPanel.style.display = 'none';
+        if (qrcodePanel) {
+            qrcodePanel.style.display = '';
+            startQrcodeLogin();
+        }
+        setStatus('');
+        return;
+    }
 
     if (subMode === 'resetpwd') {
         // 找回密码模式：隐藏主登录表单，只显示独立找回页
@@ -248,6 +358,7 @@ function switchLoginMode(mode, subMode) {
         switchHint.style.display = 'none';
         submitText.textContent = '注 册';
         smsLink.style.display = 'none';
+        if (qrcodeLink) qrcodeLink.style.display = 'none';
         forgotLink.style.display = 'none';
         if (registerLink) registerLink.style.display = 'none';
         // 显示返回登录链接
@@ -261,6 +372,7 @@ function switchLoginMode(mode, subMode) {
         submitText.textContent = '验证码登录';
         smsLink.textContent = '🔑 密码登录';
         smsLink.style.display = '';
+        if (qrcodeLink) qrcodeLink.style.display = 'none';
         forgotLink.style.display = 'none';
         if (registerLink) registerLink.style.display = 'none';
         // 验证码登录也显示返回
@@ -274,6 +386,7 @@ function switchLoginMode(mode, subMode) {
         submitText.textContent = '登录 / 注册';
         smsLink.textContent = '📨 验证码登录';
         smsLink.style.display = '';
+        if (qrcodeLink) qrcodeLink.style.display = '';
         forgotLink.style.display = ''; // 手机号模式显示忘记密码
         if (registerLink) registerLink.style.display = '';
         // 隐藏注册模式的返回链接
@@ -566,6 +679,19 @@ function bindUiEvents() {
             button.textContent = showing ? '👁' : '🙈';
             button.setAttribute('aria-label', showing ? '显示密码' : '隐藏密码');
         });
+    });
+
+    // 💻 扫码登录
+    const qrcodeLink = document.getElementById('qrcodeLoginLink');
+    qrcodeLink?.addEventListener('click', () => {
+        switchLoginMode('qrcode', 'qrcode');
+    });
+
+    // ← 返回登录（扫码登录面板）
+    const backToLoginFromQrcode = document.getElementById('backToLoginFromQrcode');
+    backToLoginFromQrcode?.addEventListener('click', () => {
+        stopQrcodeLogin();
+        switchLoginMode('password', 'login');
     });
 
     // 📨 验证码登录 / 🔑 密码登录 切换
